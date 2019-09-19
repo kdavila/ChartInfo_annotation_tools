@@ -1,0 +1,9 @@
+Chart Annotation Tools
+Copyright (c) 2019 Kenny Davila, Bhargava Urala Kota, Srirangaraj Setlur,
+Venu Govindaraju
+
+This is the code for the annotation tools used to create the PubMedCentral chart dataset used for ICDAR 2019 CHART-Infographics. The code is based on existing API's previously released by Kenny Davila and Richard Zanibbi at the DPRL in RIT, USA. The provided tools were developed at the University at Buffalo in Buffalo, New York, USA, in the Center for Unified Biometrics and Sensors (CUBS).
+
+Please see the LICENSE file for terms of use (the system is being
+distributed under a GNU public license version 3).
+

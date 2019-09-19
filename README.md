@@ -1,8 +1,8 @@
 # Chart Infographics - Tools for chart annotations
 
-The official relase of the tools developed at the University at Buffalo which have been previously used for annotation of charts at ICDAR 2019 CHART-Info competition (https://chartinfo.github.io/). 
+The official relase of the tools developed at the University at Buffalo which have been previously used for annotation of charts at ICDAR 2019 CHART-Info competition (https://chartinfo.github.io/). This code is 
 
-**Note.** This is a sofware in early stage development. It is distributed without any warranties and only a sub-set of its intended functionality has been implemented. 
+**Note.** This is a sofware in early stage development. It is distributed without any warranties (as is), under a GNU public license version 3.0. A copy of the license is included in the package. 
 
 This tool was tested and intended for usage with **Python 3.6+**
 
