@@ -1,0 +1,5 @@
+
+CHART_DIRECTORY = data/images
+CHART_ANNOTATIONS = data/annotations
+
+ENABLE_ADMIN_MODE = 1
