@@ -2,6 +2,8 @@
 import numpy as np
 import cv2
 
+from shapely.geometry import Polygon
+
 from AM_CommonTools.interface.controls.screen import Screen
 from AM_CommonTools.interface.controls.screen_container import ScreenContainer
 from AM_CommonTools.interface.controls.screen_label import ScreenLabel
@@ -250,6 +252,23 @@ class ChartLegendAnnotator(Screen):
         self.container_legend_options.append(self.btn_return_cancel)
 
         # ======================================
+        # legend entry edition options ....
+        darker_background = (55, 45, 100)
+        self.container_legend_edit  = ScreenContainer("container_legend_edit", (container_width, 150),
+                                                        back_color=darker_background)
+        self.container_legend_edit.position = (self.container_confirm_buttons.get_left(),
+                                                  self.container_confirm_buttons.get_bottom() + 20)
+        self.elements.append(self.container_legend_edit)
+        self.container_legend_edit.visible = False
+
+        self.btn_edit_force_box = ScreenButton("btn_edit_force_box", "Force Box", 21, button_width)
+        self.btn_edit_force_box.set_colors(button_text_color, button_back_color)
+        self.btn_edit_force_box.position = (button_left, 10)
+        self.btn_edit_force_box.click_callback = self.btn_edit_force_box_click
+        self.container_legend_edit.append(self.btn_edit_force_box)
+
+
+        # ======================================
         # visuals
         # ===========================
         # Image
@@ -266,6 +285,7 @@ class ChartLegendAnnotator(Screen):
         self.img_main = ScreenImage("img_main", tempo_blank, 0, 0, True, cv2.INTER_NEAREST)
         self.img_main.position = (0, 0)
         self.img_main.mouse_button_down_callback = self.img_mouse_down
+        self.img_main.double_click_callback = self.img_mouse_double_click
         self.container_images.append(self.img_main)
 
         self.canvas_select = ScreenCanvas("canvas_select", 100, 100)
@@ -418,6 +438,8 @@ class ChartLegendAnnotator(Screen):
         self.container_confirm_buttons.visible = self.edition_mode in [ChartLegendAnnotator.ModeRectangleSelect,
                                                                        ChartLegendAnnotator.ModeRectangleEdit,
                                                                        ChartLegendAnnotator.ModeConfirmExit]
+
+        self.container_legend_edit.visible = (self.edition_mode == ChartLegendAnnotator.ModeRectangleEdit)
 
         if self.edition_mode == ChartLegendAnnotator.ModeRectangleSelect:
             self.lbl_confirm_message.set_text("Select Legend Mark Location")
@@ -575,3 +597,31 @@ class ChartLegendAnnotator(Screen):
             self.return_screen = self.parent_screen
 
 
+    def btn_edit_force_box_click(self, button):
+        legend_entry_polygon = self.canvas_select.elements["selection_polygon"].points / self.view_scale
+
+        poly = Polygon(legend_entry_polygon)
+        minx, miny, maxx, maxy = poly.bounds
+
+        legend_entry_polygon = np.array([[minx, miny], [maxx, miny], [maxx, maxy], [minx, maxy]])
+        self.canvas_select.elements["selection_polygon"].update(legend_entry_polygon * self.view_scale)
+
+    def img_mouse_double_click(self, element, pos, button):
+        if button == 1:
+            # double left click ...
+            if self.edition_mode == ChartLegendAnnotator.ModeNavigate:
+                click_x, click_y = pos
+
+                # scale the view ....
+                click_x /= self.view_scale
+                click_y /= self.view_scale
+
+                # find if a given element was clicked ....
+                for text_region in self.legend.text_labels:
+                    # check ...
+                    if text_region.area_contains_point(click_x, click_y):
+                        # clicked on a text region ...
+                        self.lbx_legend_list.change_option_selected(str(text_region.id))
+                        # simulate click on edit button ....
+                        self.btn_legend_edit_click(None)
+                        break

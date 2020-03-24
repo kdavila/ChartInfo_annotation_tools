@@ -3,7 +3,7 @@ import numpy as np
 
 from xml.sax.saxutils import escape, unescape
 
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, Point
 
 class TextInfo:
     TypeChartTitle = 0
@@ -46,6 +46,12 @@ class TextInfo:
         polygon_area = Polygon(self.position_polygon).area
 
         return polygon_area / rectangular_area
+
+    def area_contains_point(self, point_x, point_y):
+        poly = Polygon(self.position_polygon)
+        point = Point(point_x, point_y)
+
+        return poly.contains(point)
 
     def get_type_description(self):
         if self.type == TextInfo.TypeChartTitle:

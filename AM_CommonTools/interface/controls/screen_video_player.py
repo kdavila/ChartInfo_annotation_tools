@@ -6,14 +6,18 @@ import math
 
 
 from .screen_element import ScreenElement
+
+# TODO: these classes MUST be re-located from AccessMath to AM_CommonTools if possible
 from AccessMath.util.opencv_video_player import OpenCVVideoPlayer
 from AccessMath.util.image_list_video_player import ImageListVideoPlayer
+from AccessMath.util.ST3D_video_player import ST3D_VideoPlayer
 
 class ScreenVideoPlayer(ScreenElement):
     MinSpeedFactor = -3
     MaxSpeedFactor = 4
     VideoPlayerOpenCV = 0
     VideoPlayerImageList = 1
+    VideoPlayerST3D = 2
 
     def __init__(self, name, width, height):
         ScreenElement.__init__(self, name)
@@ -57,9 +61,15 @@ class ScreenVideoPlayer(ScreenElement):
         self.video_files = video_files
         if video_player == ScreenVideoPlayer.VideoPlayerOpenCV:
             self.video_player = OpenCVVideoPlayer(self.video_files, forced_resolution)
-        else:
+        elif video_player == ScreenVideoPlayer.VideoPlayerImageList:
             # note that only the first file is used ...
             self.video_player = ImageListVideoPlayer(self.video_files[0], forced_resolution,file_extension=file_format)
+        elif video_player == ScreenVideoPlayer.VideoPlayerST3D:
+            # special case, instead of video paths, it expects a CCStabilityEstimator and a SpaceTimeStruct
+            self.video_player = ST3D_VideoPlayer(self.video_files[0], self.video_files[1])
+        else:
+            raise Exception("Unknown video player type")
+
         self.video_player.frame_changed_callback = self.on_video_frame_change
 
         # check resizing of player (keep original aspect ratio)
@@ -118,13 +128,22 @@ class ScreenVideoPlayer(ScreenElement):
         background.blit(self.frame_surface, (self.render_location[0] + off_x, self.render_location[1] + off_y))
 
     def on_mouse_motion(self, pos, rel, buttons):
-        pass
+        # by default, call a callback function (if assigned)
+        if self.mouse_motion_callback is not None:
+            new_pos = (pos[0] - self.render_location[0], pos[1] - self.render_location[1])
+            self.mouse_motion_callback(self, new_pos, rel, buttons)
 
     def on_mouse_enter(self, pos, rel, buttons):
-        pass
+        # by default, call a callback function (if assigned)
+        if self.mouse_enter_callback is not None:
+            new_pos = (pos[0] - self.render_location[0], pos[1] - self.render_location[1])
+            self.mouse_enter_callback(self, new_pos, rel, buttons)
 
     def on_mouse_leave(self, pos, rel, buttons):
-        pass
+        # by default, call a callback function (if assigned)
+        if self.mouse_leave_callback is not None:
+            new_pos = (pos[0] - self.render_location[0], pos[1] - self.render_location[1])
+            self.mouse_leave_callback(self, new_pos, rel, buttons)
 
     def on_mouse_button_click(self, pos, button):
         #by default, do nothing

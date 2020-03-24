@@ -1,4 +1,5 @@
 
+import os
 import sys
 import pygame
 import traceback
@@ -19,6 +20,16 @@ def main():
         return
 
     config_filename = sys.argv[1]
+
+    if not os.path.exists(config_filename):
+        print("Invalid config file / path")
+        return
+
+    if os.path.isdir(config_filename):
+        # chose one ...
+        user_filename = input("Please enter the name of configuration file to use: ")
+        config_filename = config_filename + "/" + user_filename
+
     config = Configuration.from_file(config_filename)
 
     # input/output files path
@@ -60,7 +71,7 @@ def main():
 
     # print("Remove this! on loading!")
     # current_screen.update_selected_image(5)
-    # current_screen.update_selected_image(23)
+    # current_screen.update_selected_image(8)
     # current_screen.btn_annotate_click(None)
 
     prev_screen = None

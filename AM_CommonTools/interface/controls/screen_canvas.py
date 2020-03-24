@@ -8,19 +8,21 @@ from .screen_element import ScreenElement
 
 # TODO: these classes are growing ... and should go to a file of their own ...
 class ScreenCanvasRectangle:
-    def __init__(self, x, y, w, h, visible=True):
+    def __init__(self, x, y, w, h, visible=True, total_dashes=1):
         self.x = x
         self.y = y
         self.w = w
         self.h = h
         self.visible = visible
+        self.total_dashes = total_dashes
 
-    def update(self, x, y, w, h, visible=True):
+    def update(self, x, y, w, h, visible=True, total_dashes=1):
         self.x = x
         self.y = y
         self.w = w
         self.h = h
         self.visible = visible
+        self.total_dashes = total_dashes
 
     def render(self, background, off_x, off_y, main_color, hl_color, hl_size, stroke_width=2):
         if not self.visible:
@@ -31,7 +33,43 @@ class ScreenCanvasRectangle:
         w = round(self.w)
         h = round(self.h)
 
-        pygame.draw.rect(background, main_color, (x, y, w, h), stroke_width)
+        if self.total_dashes is None or self.total_dashes <= 1:
+            # simple rectangle ....
+            pygame.draw.rect(background, main_color, (x, y, w, h), stroke_width)
+        else:
+            # dashed rectangle ....
+            ratio_x = w / (w + h)
+            hor_dashes = max(1, int(round(ratio_x * self.total_dashes / 2.0)))
+            ver_dashes = max(1, int(round((1.0 - ratio_x) * self.total_dashes / 2.0)))
+
+            # draw horizontal dashed lines ...
+            t_pieces = 2 * hor_dashes - 1
+            fraction = 1.0 / t_pieces
+            for idx in range(hor_dashes):
+                start_prc = (idx * 2) * fraction
+                end_prc = start_prc + fraction
+                # top
+                pygame.draw.line(background, main_color, (int(x + start_prc * w), int(y)),
+                                 (int(x + end_prc * w), int(y)), stroke_width)
+                # bottom
+                pygame.draw.line(background, main_color, (int(x + start_prc * w), int(y + h)), (int(x + end_prc * w),
+                                                                                                int(y + h)),
+                                 stroke_width)
+
+            # draw vertical dashed lines ...
+            t_pieces = 2 * ver_dashes - 1
+            fraction = 1.0 / t_pieces
+            for idx in range(ver_dashes):
+                start_prc = (idx * 2) * fraction
+                end_prc = start_prc + fraction
+
+                # left
+                pygame.draw.line(background, main_color, (int(x), int(y + start_prc * h)),
+                                 (int(x), int(y + end_prc * h)), stroke_width)
+                # right
+                pygame.draw.line(background, main_color, (int(x + w), int(y + start_prc * h)),
+                                 (int(x + w), int(y + end_prc * h)),
+                                 stroke_width)
 
         if hl_color is not None:
             # selected
@@ -40,6 +78,14 @@ class ScreenCanvasRectangle:
             pygame.draw.rect(background, hl_color, (x + w - half_hl, y - half_hl, hl_size, hl_size))
             pygame.draw.rect(background, hl_color, (x - half_hl, y + h - half_hl, hl_size, hl_size))
             pygame.draw.rect(background, hl_color, (x + w - half_hl, y + h - half_hl, hl_size, hl_size))
+
+            """
+            # use circles instead?
+            pygame.draw.circle(background, hl_color, (int(x), int(y)), int(half_hl))
+            pygame.draw.circle(background, hl_color, (int(x + w), int(y)), int(half_hl))
+            pygame.draw.circle(background, hl_color, (int(x), int(y + h)), int(half_hl))
+            pygame.draw.circle(background, hl_color, (int(x + w), int(y + h)), int(half_hl))
+            """
 
     def check_drag_type(self, off_x, off_y, hl_size, px, py):
         if not self.visible:
@@ -115,12 +161,37 @@ class ScreenCanvasRectangle:
 
 
 class ScreenCanvasPolygon:
-    def __init__(self, points, visible=True):
+    def __init__(self, points, visible=True, total_dashes=1):
         self.points = np.array(points)
         self.polygon = asPolygon(self.points)
         self.visible = visible
+        self.total_dashes = total_dashes
+        self.dashes_per_side = self.compute_dashes_per_side(total_dashes)
 
-    def update(self, points, visible=True):
+    def compute_dashes_per_side(self, total_dashes):
+        # base case ... no dashes ....
+        if total_dashes is None or total_dashes <= 1:
+            return None
+
+        # for each side of the polygon ...
+        length_per_side = np.zeros(self.points.shape[0])
+        for idx in range(self.points.shape[0]):
+            side_length = np.linalg.norm(self.points[idx, :] - self.points[(idx + 1) % self.points.shape[0], :])
+            length_per_side[idx] = side_length
+
+        # normalize length
+        total_sum = length_per_side.sum()
+        if total_sum > 0:
+            length_per_side /= total_sum
+
+        dashes_per_side = []
+        for idx in range(self.points.shape[0]):
+            dashes_per_side.append(max(1, int(round(length_per_side[idx] * self.total_dashes))))
+
+        return dashes_per_side
+
+
+    def update(self, points, visible=True, total_dashes=1):
         if points is None:
             # empty state
             self.points[:, :] = 0.0
@@ -128,14 +199,40 @@ class ScreenCanvasPolygon:
             # copy new state
             self.points[:,:] = points
         self.visible = visible
+        self.total_dashes = total_dashes
+        self.dashes_per_side = self.compute_dashes_per_side(total_dashes)
+
+    def int_point(self, point):
+        return int(round(point[0])), int(round(point[1]))
 
     def render(self, background, off_x, off_y, main_color, hl_color, hl_size, stroke_width=2):
         if not self.visible:
             return
 
-        offset_points = (self.points + np.array([[off_x, off_y]])).round().tolist()
+        offset_points = (self.points + np.array([[off_x, off_y]]))
 
-        pygame.draw.polygon(background, main_color, offset_points, stroke_width)
+        if self.total_dashes is None or self.total_dashes <= 1:
+            offset_points = offset_points.round().tolist()
+            pygame.draw.polygon(background, main_color, offset_points, stroke_width)
+        else:
+            # for each of the polygon
+            for side_idx in range(self.points.shape[0]):
+                # draw the dashed line ....
+                t_pieces = 2 * self.dashes_per_side[side_idx] - 1
+                fraction = 1.0 / t_pieces
+
+                p1 = offset_points[side_idx, :]
+                p2 = offset_points[(side_idx + 1) % offset_points.shape[0], :]
+
+                for dash_idx in range(self.dashes_per_side[side_idx]):
+                    start_prc = (dash_idx * 2) * fraction
+                    end_prc = start_prc + fraction
+
+                    dash_p1 = p1 * (1.0 - start_prc) + p2 * start_prc
+                    dash_p2 = p1 * (1.0 - end_prc) + p2 * end_prc
+
+                    pygame.draw.line(background, main_color, self.int_point(dash_p1), self.int_point(dash_p2),
+                                     stroke_width)
 
         if hl_color is not None:
             # selected
@@ -263,17 +360,17 @@ class ScreenCanvas(ScreenElement):
         canvas_polygon = ScreenCanvasPolygon(polygon_points)
         self.__add_canvas_element(name, canvas_polygon, custom_color, custom_sel_color)
 
-    def update_rectangle_element(self, name, x, y, w, h, visible):
+    def update_rectangle_element(self, name, x, y, w, h, visible, dashes=1):
         element = self.elements[name]
         assert isinstance(element, ScreenCanvasRectangle)
 
-        element.update(x, y, w, h, visible)
+        element.update(x, y, w, h, visible, dashes)
 
-    def update_polygon_element(self, name, polygon_points, visible):
+    def update_polygon_element(self, name, polygon_points, visible, dashes=1):
         element = self.elements[name]
         assert isinstance(element, ScreenCanvasPolygon)
 
-        element.update(polygon_points, visible)
+        element.update(polygon_points, visible, dashes)
 
     def update_custom_colors(self, name, custom_color, custom_sel_color):
         if name in self.elements:

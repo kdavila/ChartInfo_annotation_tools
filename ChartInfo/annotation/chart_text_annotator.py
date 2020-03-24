@@ -3,6 +3,8 @@ import numpy as np
 import cv2
 from scipy.spatial import distance as dist
 
+from shapely.geometry import Polygon
+
 try:
     import pytesseract as OCR
 except:
@@ -314,12 +316,24 @@ class ChartTextAnnotator(Screen):
         self.lbl_edit_title.set_color(self.text_color)
         self.container_edit_options.append(self.lbl_edit_title)
 
-        self.lbx_edit_type = ScreenTextlist("lbx_edit_type", (container_width - 20, 280), 18, back_color=(255,255,255),
+        self.lbx_edit_type = ScreenTextlist("lbx_edit_type", (button_2_width, 280), 18, back_color=(255,255,255),
                                             option_color=(0, 0, 0), selected_back=(120, 80, 50),
                                             selected_color=(255, 255, 255))
         self.lbx_edit_type.position = (10, self.lbl_edit_title.get_bottom() + 10)
         self.container_edit_options.append(self.lbx_edit_type)
         self.add_text_types()
+
+        self.btn_edit_force_box = ScreenButton("btn_edit_force_box", "Force Box", 21, button_2_width)
+        self.btn_edit_force_box.set_colors(button_text_color, button_back_color)
+        self.btn_edit_force_box.position = (button_2_right, self.lbl_edit_title.get_bottom() + 10)
+        self.btn_edit_force_box.click_callback = self.btn_edit_force_box_click
+        self.container_edit_options.append(self.btn_edit_force_box)
+
+        self.btn_edit_force_quad = ScreenButton("btn_edit_force_quad", "Force Quad", 21, button_2_width)
+        self.btn_edit_force_quad.set_colors(button_text_color, button_back_color)
+        self.btn_edit_force_quad.position = (button_2_right, self.btn_edit_force_box.get_bottom() + 10)
+        self.btn_edit_force_quad.click_callback = self.btn_edit_force_quad_click
+        self.container_edit_options.append(self.btn_edit_force_quad)
 
         self.lbl_edit_text = ScreenLabel("lbl_edit_text", "Transcription", 21, button_width, 1)
         self.lbl_edit_text.position = (button_left, self.lbx_edit_type.get_bottom() + 20)
@@ -665,6 +679,25 @@ class ChartTextAnnotator(Screen):
                 self.canvas_select.elements["selection_polygon"].update(points)
 
                 self.set_editor_mode(ChartTextAnnotator.ModeAddingTextEdit)
+        elif button == 3:
+            # double right click ....
+            if self.edition_mode == ChartTextAnnotator.ModeNavigate:
+                click_x, click_y = pos
+
+                # scale the view ....
+                click_x /= self.view_scale
+                click_y /= self.view_scale
+
+                # find if a given element was clicked ....
+                for text_region in self.text_regions:
+                    # check ...
+                    if text_region.area_contains_point(click_x, click_y):
+                        # clicked on a text region ...
+                        self.lbx_text_list.change_option_selected(str(text_region.id))
+                        # simulate click on edit button ....
+                        self.btn_text_edit_click(None)
+                        break
+
 
     def btn_text_add_click(self, button):
         self.set_editor_mode(ChartTextAnnotator.ModeAddingTextSelect)
@@ -928,5 +961,24 @@ class ChartTextAnnotator(Screen):
         cv2.imwrite("TEMPO_CHECK_OCR_2.png", text_img)
 
         print("-> Tesseract Result: " + result)
+
+
+    def btn_edit_force_box_click(self, button):
+        text_polygon = self.canvas_select.elements["selection_polygon"].points / self.view_scale
+
+        poly = Polygon(text_polygon)
+        minx, miny, maxx, maxy = poly.bounds
+
+        text_polygon = np.array([[minx, miny], [maxx, miny], [maxx, maxy], [minx, maxy]])
+        self.canvas_select.elements["selection_polygon"].update(text_polygon * self.view_scale)
+
+
+    def btn_edit_force_quad_click(self, button):
+        text_polygon = self.canvas_select.elements["selection_polygon"].points / self.view_scale
+
+        rot_rect = cv2.minAreaRect(text_polygon.reshape(4, 1, 2).astype(np.float32))
+        quad_points = self.order_points(cv2.boxPoints(rot_rect)).astype(text_polygon.dtype)
+
+        self.canvas_select.elements["selection_polygon"].update(quad_points * self.view_scale)
 
 
