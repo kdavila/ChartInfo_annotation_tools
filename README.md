@@ -11,7 +11,9 @@ Main Library Requirements:
  - Pygame
  - OpenCV
  - Numpy 
+ - Scipy
  - Shapely
+ - PyTesseract
   
 
 ## Main Annotation Tool 
@@ -99,5 +101,15 @@ Example:
 
 	# This will generate a testing dataset for Task 3  
 	python chart_json_export.py data/images data/annotations data/task3_json 3 0
+
+## Update (June 05, 2020)
+  - Major improvements to text annotation including:
+    - Improved Text Box Behavior
+    - Copy/Paste Options
+    - Two new text roles: Tick Grouping and Data Mark Label
+  - Data Mark labels are now used as the next default name for data series on charts
+    which have them but do not include legends
+  - Other minor improvements on the UI
+   
 
 	 
