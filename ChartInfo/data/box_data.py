@@ -221,17 +221,7 @@ class BoxData:
         a_y2 = int(a_y2)
 
         # first, determine data series ...
-        if chart_info.legend is None:
-            # assume a single data series
-            data_series = [None]
-        else:
-            legend_data_series = chart_info.legend.get_data_series()
-
-            if len(legend_data_series) == 0:
-                # assume a single data series
-                data_series = [None]
-            else:
-                data_series = legend_data_series
+        data_series = chart_info.get_data_series_candidates()
 
         if chart_info.is_vertical():
             # vertical boxes... X axis has the data series ...

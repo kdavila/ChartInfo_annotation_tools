@@ -120,6 +120,7 @@ class ChartAxesAnnotator(Screen):
         self.lbl_edit_axis_y2 = None
         self.btn_edit_axis_y2_add = None
         self.btn_edit_axis_y2_edit = None
+        self.lbl_edit_axes_summary = None
         self.btn_return_accept = None
         self.btn_return_cancel = None
 
@@ -299,7 +300,7 @@ class ChartAxesAnnotator(Screen):
         # ==============================
         # main annotation options
         darker_background = (94, 96, 125)
-        self.container_annotation_buttons = ScreenContainer("container_annotation_buttons", (container_width, 380),
+        self.container_annotation_buttons = ScreenContainer("container_annotation_buttons", (container_width, 430),
                                                             back_color=darker_background)
         self.container_annotation_buttons.position = (self.container_view_buttons.get_left(),
                                                       self.container_view_buttons.get_bottom() + 20)
@@ -389,6 +390,12 @@ class ChartAxesAnnotator(Screen):
         self.btn_edit_axis_y2_edit.click_callback = self.btn_edit_axis_y2_edit_click
         self.container_annotation_buttons.append(self.btn_edit_axis_y2_edit)
 
+        self.lbl_edit_axes_summary = ScreenLabel("lbl_edit_axes_summary", "[Here Axis Info]\n" * 4, 21,
+                                                 self.container_annotation_buttons.width - 40, 0)
+        self.lbl_edit_axes_summary.position = (20, self.btn_edit_axis_y2_edit.get_bottom() + 30)
+        self.lbl_edit_axes_summary.set_background(darker_background)
+        self.lbl_edit_axes_summary.set_color(self.text_color)
+        self.container_annotation_buttons.append(self.lbl_edit_axes_summary)
 
         self.btn_return_accept = ScreenButton("btn_return_accept", "Accept", 21, button_2_width)
         return_top = self.container_annotation_buttons.height - self.btn_return_accept.height - 10
@@ -1197,7 +1204,33 @@ class ChartAxesAnnotator(Screen):
         self.edition_mode = new_mode
 
         # Navigation mode ...
-        self.container_annotation_buttons.visible = (self.edition_mode == ChartAxesAnnotator.ModeNavigate)
+        if self.edition_mode == ChartAxesAnnotator.ModeNavigate:
+            self.container_annotation_buttons.visible = True
+
+            axes_description = ""
+            axis_desc = "{0:s}: {1:s} ({2:s}) - {3:s}\n"
+            if self.axes.x1_axis is not None:
+                value_type_str, ticks_type_str, scale_type_str = self.axes.x1_axis.get_description()
+                axes_description += axis_desc.format("X-1", value_type_str, scale_type_str, ticks_type_str)
+
+            if self.axes.y1_axis is not None:
+                value_type_str, ticks_type_str, scale_type_str = self.axes.y1_axis.get_description()
+                axes_description += axis_desc.format("Y-1", value_type_str, scale_type_str, ticks_type_str)
+
+            if self.axes.x2_axis is not None:
+                value_type_str, ticks_type_str, scale_type_str = self.axes.x2_axis.get_description()
+                axes_description += axis_desc.format("X-2", value_type_str, scale_type_str, ticks_type_str)
+
+            if self.axes.y2_axis is not None:
+                value_type_str, ticks_type_str, scale_type_str = self.axes.y2_axis.get_description()
+                axes_description += axis_desc.format("Y-2", value_type_str, scale_type_str, ticks_type_str)
+
+            if axes_description == "":
+                axes_description = "No Axes Annotations"
+
+            self.lbl_edit_axes_summary.set_text(axes_description)
+        else:
+            self.container_annotation_buttons.visible = False
 
         # edit modes ...
         self.container_axis_buttons.visible = (self.edition_mode == ChartAxesAnnotator.ModeAxisEdit)

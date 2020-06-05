@@ -13,6 +13,8 @@ class TextInfo:
     TypeLegendLabel = 4
     TypeValueLabel = 5
     TypeOther = 6
+    TypeTickGrouping = 7
+    TypeDataMarkLabel = 8
 
     def __init__(self, id, position_polygon, text_type, text_value):
         # must be a numpy array with a row for each x-y coord
@@ -60,12 +62,16 @@ class TextInfo:
             return "axis-title"
         elif self.type == TextInfo.TypeTickLabel:
             return "tick-label"
+        elif self.type == TextInfo.TypeTickGrouping:
+            return "tick-grouping"
         elif self.type == TextInfo.TypeLegendTitle:
             return "legend-title"
         elif self.type == TextInfo.TypeLegendLabel:
             return "legend-label"
         elif self.type == TextInfo.TypeValueLabel:
             return "value-label"
+        elif self.type == TextInfo.TypeDataMarkLabel:
+            return "mark-label"
         elif self.type == TextInfo.TypeOther:
             return "other"
         else:
@@ -81,12 +87,16 @@ class TextInfo:
             return TextInfo.TypeAxisTitle
         elif type_str == "tick-label":
             return TextInfo.TypeTickLabel
+        elif type_str == "tick-grouping":
+            return TextInfo.TypeTickGrouping
         elif type_str == "legend-title":
             return TextInfo.TypeLegendTitle
         elif type_str == "legend-label":
             return TextInfo.TypeLegendLabel
         elif type_str == "value-label":
             return TextInfo.TypeValueLabel
+        elif type_str == "mark-label":
+            return TextInfo.TypeDataMarkLabel
         elif type_str == "other":
             return TextInfo.TypeOther
         else:

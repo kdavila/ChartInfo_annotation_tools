@@ -415,7 +415,7 @@ class BoxChartAnnotator(Screen):
                                                  self.container_view_buttons.get_bottom() + 15)
         self.elements.append(self.container_order_buttons)
 
-        self.lbl_order_title = ScreenLabel("lbl_order_title", "Bar Ordering and Stacking", 21, 290, 1)
+        self.lbl_order_title = ScreenLabel("lbl_order_title", "Box Ordering", 21, 290, 1)
         self.lbl_order_title.position = (5, 5)
         self.lbl_order_title.set_background(darker_background)
         self.lbl_order_title.set_color(self.text_color)
@@ -502,7 +502,7 @@ class BoxChartAnnotator(Screen):
                                                       self.container_view_buttons.get_bottom() + 15)
         self.elements.append(self.container_parameters_buttons)
 
-        self.lbl_parameters_title = ScreenLabel("lbl_parameters_title", "Bar Parameters", 21, 290, 1)
+        self.lbl_parameters_title = ScreenLabel("lbl_parameters_title", "Box Parameters", 21, 290, 1)
         self.lbl_parameters_title.position = (5, 5)
         self.lbl_parameters_title.set_background(darker_background)
         self.lbl_parameters_title.set_color(self.text_color)
@@ -841,7 +841,7 @@ class BoxChartAnnotator(Screen):
                         # box width + distance between contiguous boxes
                         box_start += box_width + box_inner_dist
 
-                    # next group of bars ...
+                    # next group of boxes ...
                     box_start += box_outer_dist
 
             else:
@@ -869,10 +869,10 @@ class BoxChartAnnotator(Screen):
                         # ... index for quicker mapping between boxes to click positions ....
                         self.tempo_box_polygon_index.append((series_idx, cat_idx))
 
-                        # next stack of bars on same grouping
+                        # next stack of boxes on same grouping
                         box_start += box_width + box_inner_dist
 
-                    # next group of bars ...
+                    # next group of boxes ...
                     box_start += box_outer_dist
 
 
@@ -1306,7 +1306,7 @@ class BoxChartAnnotator(Screen):
 
     def btn_order_move_down_click(self, button):
         if self.lbx_order_list.selected_option_value is None:
-            print("Must select a data series or bar group")
+            print("Must select a data series or box group")
             return
 
         value_type, value_idx = self.lbx_order_list.selected_option_value.split("-")

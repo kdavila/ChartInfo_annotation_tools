@@ -87,7 +87,11 @@ class ImageInfo:
 
     @staticmethod
     def FromXML(filename, image):
-        tree = ET.parse(filename)
+        try:
+            tree = ET.parse(filename)
+        except:
+            raise Exception("Could not parse the file: " + filename)
+
         root = tree.getroot()  # ProjectionAnnotations
 
         info = ImageInfo(image)

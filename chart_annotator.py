@@ -48,7 +48,8 @@ def main():
     pygame.display.set_caption('Chart Annotation Tool')
 
     if small_mode:
-        screen_w, screen_h = 1250, 670
+        # 1250, 670
+        screen_w, screen_h = 1250, 820
     else:
         if large_mode:
             screen_w, screen_h = 1850, 970

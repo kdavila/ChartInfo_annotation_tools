@@ -70,7 +70,10 @@ class ConnectedComponent:
         # add some padding first ...
         copy = cv2.copyMakeBorder(self.img, 2, 2, 2, 2, cv2.BORDER_CONSTANT, value=(0, ))
         # get the contour(s) ...
-        _, raw_contours, _ = cv2.findContours(copy, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+        if int(cv2.__version__.split(".")[0]) >= 4:
+            raw_contours, _ = cv2.findContours(copy, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+        else:
+            _, raw_contours, _ = cv2.findContours(copy, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
 
         resulting_contours = []
         for contour in raw_contours:

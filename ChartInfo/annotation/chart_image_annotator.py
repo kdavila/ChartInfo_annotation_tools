@@ -25,6 +25,9 @@ from ChartInfo.annotation.box_chart_annotator import BoxChartAnnotator
 from ChartInfo.annotation.line_chart_annotator import LineChartAnnotator
 from ChartInfo.annotation.scatter_chart_annotator import ScatterChartAnnotator
 
+from ChartInfo.util.time_stats import TimeStats
+
+
 class ChartImageAnnotator(Screen):
     ModeNavigate = 0
     ModeEditPanels = 1
@@ -43,6 +46,12 @@ class ChartImageAnnotator(Screen):
     SplitOperationYSplit = 1
     SplitOperationMerge = 2
 
+    WaitModeNone = 0
+    WaitModeText = 1
+    WaitModeLegend = 2
+    WaitModeAxes= 3
+    WaitModeData = 4
+
     def __init__(self, size, chart_dir, annotation_dir, relative_path, parent_menu, admin_mode):
         Screen.__init__(self, "Chart Ground Truth Annotation Interface", size)
 
@@ -54,6 +63,10 @@ class ChartImageAnnotator(Screen):
         self.annotation_dir = annotation_dir
         self.relative_path = relative_path
         self.admin_mode = admin_mode
+
+        self.time_stats = TimeStats()
+        self.in_menu_time_start = time.time()
+        self.wait_mode = ChartImageAnnotator.WaitModeNone
 
         # find output path ...
         relative_dir, img_filename = os.path.split(self.relative_path)
@@ -511,7 +524,24 @@ class ChartImageAnnotator(Screen):
         self.lbx_class_panel_class.add_option(str(ChartInfo.TypeBox) + "-" + str(ChartInfo.OrientationVertical),
                                               "Box Chart (Vertical)")
 
+    def prepare_screen(self):
+        if self.wait_mode != ChartImageAnnotator.WaitModeNone:
+            # get delta of time on previous screen ... prepare to count towards this menu
+            delta = self.get_reset_time_delta()
+            # add delta on the corresponding process...
+            if self.wait_mode == ChartImageAnnotator.WaitModeText:
+                self.time_stats.time_text += delta
+            elif self.wait_mode == ChartImageAnnotator.WaitModeLegend:
+                self.time_stats.time_legend += delta
+            elif self.wait_mode == ChartImageAnnotator.WaitModeAxes:
+                self.time_stats.time_axes += delta
+            elif self.wait_mode == ChartImageAnnotator.WaitModeData:
+                self.time_stats.time_data += delta
 
+            self.wait_mode = ChartImageAnnotator.WaitModeNone
+
+        # call parent prepare screen ...
+        Screen.prepare_screen(self)
 
     def btn_confirm_accept_click(self, button):
         if self.edition_mode == ChartImageAnnotator.ModeConfirmOverwritePanels:
@@ -564,6 +594,11 @@ class ChartImageAnnotator(Screen):
         elif self.edition_mode == ChartImageAnnotator.ModeConfirmExit:
             # return with unsaved changes lost
             print("Unsaved changes on " + self.relative_path + " were lost")
+
+            delta = self.get_reset_time_delta()
+            self.time_stats.time_main += delta
+            self.parent.update_annotation_times(self.time_stats)
+
             self.parent.refresh_page()
             self.return_screen = self.parent
 
@@ -611,7 +646,15 @@ class ChartImageAnnotator(Screen):
         self.view_mode = ChartImageAnnotator.ViewModeGrayNoData
         self.update_current_view()
 
+    def get_reset_time_delta(self):
+        new_time = time.time()
+        delta = new_time - self.in_menu_time_start
+        self.in_menu_time_start = new_time
+
+        return delta
+
     def btn_label_panels_click(self, button):
+        self.time_stats.time_main += self.get_reset_time_delta()
         self.tempo_panel_tree = PanelTree.Copy(self.image_info.panel_tree)
         self.set_editor_mode(ChartImageAnnotator.ModeEditPanels)
 
@@ -631,6 +674,11 @@ class ChartImageAnnotator(Screen):
     def btn_return_click(self, button):
         if not self.unsaved_changes:
             print("Edition for " + self.relative_path + " completed")
+
+            delta = self.get_reset_time_delta()
+            self.time_stats.time_main += delta
+            self.parent.update_annotation_times(self.time_stats)
+
             self.parent.refresh_page()
             self.return_screen = self.parent
 
@@ -654,9 +702,16 @@ class ChartImageAnnotator(Screen):
         prev_key = self.get_image_class_key()
         self.lbx_class_panel_class.change_option_selected(prev_key)
 
+        delta = self.get_reset_time_delta()
+        self.time_stats.time_main += delta
         self.set_editor_mode(ChartImageAnnotator.ModeEditClass)
 
     def btn_edit_text_click(self, button):
+        # prepare time count for text ...
+        delta = self.get_reset_time_delta()
+        self.time_stats.time_main += delta
+        self.wait_mode = ChartImageAnnotator.WaitModeText
+
         panel_image = self.image_info.get_panel_image(self.selected_panel)
 
         text_annotator = ChartTextAnnotator(self.size, panel_image, self.image_info.panels[self.selected_panel], self,
@@ -666,6 +721,11 @@ class ChartImageAnnotator(Screen):
         self.return_screen = text_annotator
 
     def btn_edit_legend_click(self, button):
+        # prepare time count for legend ...
+        delta = self.get_reset_time_delta()
+        self.time_stats.time_main += delta
+        self.wait_mode = ChartImageAnnotator.WaitModeLegend
+
         panel_image = self.image_info.get_panel_image(self.selected_panel)
 
         legend_annotator = ChartLegendAnnotator(self.size, panel_image, self.image_info.panels[self.selected_panel], self)
@@ -674,6 +734,11 @@ class ChartImageAnnotator(Screen):
         self.return_screen = legend_annotator
 
     def btn_edit_axis_click(self, button):
+        # prepare time count for axis ...
+        delta = self.get_reset_time_delta()
+        self.time_stats.time_main += delta
+        self.wait_mode = ChartImageAnnotator.WaitModeAxes
+
         panel_image = self.image_info.get_panel_image(self.selected_panel)
 
         axes_annotator = ChartAxesAnnotator(self.size, panel_image, self.image_info.panels[self.selected_panel], self)
@@ -708,6 +773,11 @@ class ChartImageAnnotator(Screen):
             data_annotator = ScatterChartAnnotator(self.size, panel_image, current_panel, self)
         else:
             raise Exception("Not implemented!!")
+
+        # prepare time count for data ...
+        delta = self.get_reset_time_delta()
+        self.time_stats.time_main += delta
+        self.wait_mode = ChartImageAnnotator.WaitModeData
 
         data_annotator.prepare_screen()
 
@@ -825,6 +895,10 @@ class ChartImageAnnotator(Screen):
         self.set_editor_mode(ChartImageAnnotator.ModeSelectPanelSplit)
 
     def btn_split_return_click(self, button):
+        # add time delta for panels ... from here, confirm or not will count towards main screen time
+        delta = self.get_reset_time_delta()
+        self.time_stats.time_panels += delta
+
         if self.tempo_panel_tree == self.image_info.panel_tree:
             # nothing changed ...
             self.set_editor_mode(ChartImageAnnotator.ModeNavigate)
@@ -890,6 +964,10 @@ class ChartImageAnnotator(Screen):
         self.lbl_panels_current.set_text(msg)
 
     def btn_class_panel_continue_click(self, button):
+        # finish time for classification ... from here, next time will count towards main menu ...
+        delta = self.get_reset_time_delta()
+        self.time_stats.time_classification += delta
+
         prev_key = self.get_image_class_key()
         if prev_key != self.lbx_class_panel_class.selected_option_value:
             self.set_editor_mode(ChartImageAnnotator.ModeConfirmOverwriteClass)

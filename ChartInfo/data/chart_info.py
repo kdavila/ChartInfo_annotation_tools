@@ -104,15 +104,44 @@ class ChartInfo:
 
         return result
 
-    def overwrite_text(self, text_regions, discard_data):
+    def overwrite_text(self, text_regions, discard_legend, discard_axes, discard_data):
         self.text = text_regions
 
-        if discard_data:
-            # discard any existing annotation here (to avoid inconsistencies)
-            # TODO: maybe it could check for inconsistencies and avoid discarding everything ?
-            self.axes = None
+        if discard_legend:
             self.legend = None
+
+        if discard_legend or discard_axes:
+            self.axes = None
+
+        if discard_legend or discard_axes or discard_data:
             self.data = None
+
+    def get_data_series_candidates(self):
+        # determine data series ...
+        # get data series candidates from the legend ...
+        if self.legend is None:
+            series_candidates = []
+        else:
+            series_candidates = self.legend.get_data_series()
+
+        # .... check candidates ...
+        if len(series_candidates) == 0:
+            # no candidates on the legend (empty or null legend)
+
+            # check for data mark labels
+            mark_labels = self.get_all_text(TextInfo.TypeDataMarkLabel)
+
+            if len(mark_labels) > 0:
+                # use mark labels as the data series .... (rare)
+                data_series = mark_labels
+            else:
+                # assume a single default data series (common)
+                data_series = [None]
+        else:
+            # legend provides candidates ... use them ...
+            data_series = series_candidates
+
+        return data_series
 
     def get_description(self):
 

@@ -12,6 +12,7 @@ from AM_CommonTools.interface.controls.screen_paginator import ScreenPaginator
 
 from .chart_image_annotator import ChartImageAnnotator
 from ChartInfo.data.image_info import ImageInfo
+from ChartInfo.util.time_stats import TimeStats
 
 class ChartMainAnnotator(Screen):
 
@@ -22,13 +23,16 @@ class ChartMainAnnotator(Screen):
         self.chart_image_list = ImageInfo.ListChartDirectory(chart_dir, "")
         print("A total of {0:d} chart images were found".format(len(self.chart_image_list)))
 
+        self.annotation_times = TimeStats()
+
         self.general_background = (20, 50, 85)
         self.text_color = (255, 255, 255)
         self.admin_mode = admin_mode
+        self.small_mode = size[0] < 1500
 
         # about the grid ....
-        self.tb_grid_cols = 6
-        self.tb_grid_rows = 4
+        self.tb_grid_cols = 5 if self.small_mode else 6
+        self.tb_grid_rows = 3 if self.small_mode else 4
         self.tb_width = 160
         self.tb_height = 120
         self.tb_outer_margin = 16
@@ -52,10 +56,17 @@ class ChartMainAnnotator(Screen):
         self.thumbnails_images = None
         self.thumbnails_status = None
         self.thumbnails_labels = None
+        self.cache_raw_status = None
         self.paginator = None
         # ... right side image options ...
         self.lbl_page_descriptor = None
         self.container_image_info = None
+        self.img_status_panels = None
+        self.img_status_classes = None
+        self.img_status_text = None
+        self.img_status_legend = None
+        self.img_status_axis = None
+        self.img_status_data = None
         self.img_display = None
         self.img_title = None
         self.btn_label_image = None
@@ -92,6 +103,7 @@ class ChartMainAnnotator(Screen):
         self.thumbnails_images = []
         self.thumbnails_status = []
         self.thumbnails_labels = []
+        self.cache_raw_status = []
         for row in range(self.tb_grid_rows):
             for col in range(self.tb_grid_cols):
                 corner_x = self.tb_outer_margin + self.tb_col_width * col
@@ -108,6 +120,7 @@ class ChartMainAnnotator(Screen):
                 tb_status.position = (corner_x, tb_image.get_bottom() + self.tb_inner_margin)
                 self.container_thumbnails.append(tb_status)
                 self.thumbnails_status.append(tb_status)
+                self.cache_raw_status.append(None)
 
                 tb_label = ScreenLabel("tb_label_{0:d}_{1:d}".format(row, col), "<IMAGE FILE NAME>" , 12, self.tb_width, centered=1)
                 tb_label.position = (corner_x, tb_status.get_bottom() + self.tb_inner_margin)
@@ -132,40 +145,86 @@ class ChartMainAnnotator(Screen):
         self.lbl_page_descriptor.set_color(self.text_color)
         self.elements.append(self.lbl_page_descriptor)
 
-        img_container_height = int(img_container_width) + 100
+        img_container_height = int(img_container_width) + 140
         self.container_image_info = ScreenContainer("container_image_info", (img_container_width, img_container_height),
                                                     back_color=(15,30, 50))
         self.container_image_info.position = (self.lbl_page_descriptor.get_left(), self.lbl_page_descriptor.get_bottom() + 10)
         self.elements.append(self.container_image_info)
 
-        base_img = np.zeros((2,2, 3), np.uint8)
-        self.img_display = ScreenImage("img_display", base_img, self.container_image_info.width - 20, self.container_image_info.width - 20, True)
-        self.img_display.position = (10, 10)
+        base_img = np.zeros((2, 2, 3), np.uint8)
+        self.img_display = ScreenImage("img_display", base_img, self.container_image_info.width - 20,
+                                       self.container_image_info.width - 20, True)
+        self.img_display.position = (10, 20)
         self.container_image_info.append(self.img_display)
 
+        stats_part_w = int((self.container_image_info.width - 20) / 6)
+        text = "Pns" if self.small_mode else "Panels"
+        self.img_status_panels = ScreenLabel("img_status_panels", text, 21, stats_part_w)
+        self.img_status_panels.position = (int(20 + stats_part_w * 0), self.img_display.get_bottom() + 10)
+        self.img_status_panels.background = (255, 0, 0)
+        self.img_status_panels.set_color((255, 255, 255))
+        self.container_image_info.append(self.img_status_panels)
+
+        text = "Cls" if self.small_mode else "Classes"
+        self.img_status_classes = ScreenLabel("img_status_classes", text, 21, stats_part_w)
+        self.img_status_classes.position = (int(20 + stats_part_w * 1), self.img_status_panels.get_top())
+        self.img_status_classes.background = (255, 0, 0)
+        self.img_status_classes.set_color((255, 255, 255))
+        self.container_image_info.append(self.img_status_classes)
+
+        text = "Txt" if self.small_mode else "Text"
+        self.img_status_text = ScreenLabel("img_status_text", text, 21, stats_part_w)
+        self.img_status_text.position = (int(20 + stats_part_w * 2), self.img_status_panels.get_top())
+        self.img_status_text.background = (255, 0, 0)
+        self.img_status_text.set_color((255, 255, 255))
+        self.container_image_info.append(self.img_status_text)
+
+        text = "Lgn" if self.small_mode else "Legend"
+        self.img_status_legend = ScreenLabel("img_status_text", text, 21, stats_part_w)
+        self.img_status_legend.position = (int(20 + stats_part_w * 3), self.img_status_panels.get_top())
+        self.img_status_legend.background = (255, 0, 0)
+        self.img_status_legend.set_color((255, 255, 255))
+        self.container_image_info.append(self.img_status_legend)
+
+        text = "Axs" if self.small_mode else "Axis"
+        self.img_status_axis = ScreenLabel("img_status_axis", text, 21, stats_part_w)
+        self.img_status_axis.position = (int(20 + stats_part_w * 4), self.img_status_panels.get_top())
+        self.img_status_axis.background = (255, 0, 0)
+        self.img_status_axis.set_color((255, 255, 255))
+        self.container_image_info.append(self.img_status_axis)
+
+        text = "Dta" if self.small_mode else "Data"
+        self.img_status_data = ScreenLabel("img_status_data", text, 21, stats_part_w)
+        self.img_status_data.position = (int(20 + stats_part_w * 5), self.img_status_panels.get_top())
+        self.img_status_data.background = (255, 0, 0)
+        self.img_status_data.set_color((255, 255, 255))
+        self.container_image_info.append(self.img_status_data)
+
         self.img_title = ScreenLabel("img_title", "<Image File Name>" * 10, 16, self.img_display.width)
-        self.img_title.position = (10, self.img_display.get_bottom() + 10)
+        self.img_title.position = (10, self.img_status_panels.get_bottom() + 10)
         self.img_title.background = self.container_image_info.back_color
         self.img_title.set_color(self.text_color)
         self.container_image_info.append(self.img_title)
 
-        self.btn_label_image = ScreenButton("btn_label_image", "Annotate", 18, 100,
+        btn_width = 90 if self.small_mode else 100
+        btn_padding = 10 if self.small_mode else 20
+        self.btn_label_image = ScreenButton("btn_label_image", "Annotate", 18, btn_width,
                                             text_color=button_text_color, back_color=button_back_color)
         self.btn_label_image.position = (int((self.container_image_info.width - self.btn_label_image.width) / 2),
                                          self.img_title.get_bottom() + 10)
         self.btn_label_image.click_callback = self.btn_annotate_click
         self.container_image_info.append(self.btn_label_image)
 
-        self.btn_prev_image = ScreenButton("btn_prev_image", "Previous", 18, 100, text_color=button_text_color,
+        self.btn_prev_image = ScreenButton("btn_prev_image", "Previous", 18, btn_width, text_color=button_text_color,
                                            back_color=button_back_color)
-        self.btn_prev_image.position = (self.btn_label_image.get_left() - self.btn_prev_image.width - 20,
+        self.btn_prev_image.position = (self.btn_label_image.get_left() - self.btn_prev_image.width - btn_padding,
                                          self.img_title.get_bottom() + 10)
         self.btn_prev_image.click_callback = self.btn_prev_image_click
         self.container_image_info.append(self.btn_prev_image)
 
-        self.btn_next_image = ScreenButton("btn_next_image", "Next", 18, 100, text_color=button_text_color,
+        self.btn_next_image = ScreenButton("btn_next_image", "Next", 18, btn_width, text_color=button_text_color,
                                            back_color=button_back_color)
-        self.btn_next_image.position = (self.btn_label_image.get_right() + 20,
+        self.btn_next_image.position = (self.btn_label_image.get_right() + btn_padding,
                                         self.img_title.get_bottom() + 10)
         self.btn_next_image.click_callback = self.btn_next_image_click
         self.container_image_info.append(self.btn_next_image)
@@ -178,14 +237,9 @@ class ChartMainAnnotator(Screen):
         self.btn_exit.click_callback = self.btn_exit_click
         self.elements.append(self.btn_exit)
 
-    def gen_status_image(self, all_status, width, height, border):
-        result = np.zeros((height, width, 3), np.uint8)
-
-        approx_width = (width - (len(all_status) + 1) * border) / len(all_status)
-        last_x = 0
+    def get_status_colors(self, all_status):
+        status_colors = []
         for idx, value in enumerate(all_status):
-            left = last_x + border
-            right = left + approx_width
             if value == 2:
                 # labeled and verified
                 color = (128, 255, 128)
@@ -195,6 +249,20 @@ class ChartMainAnnotator(Screen):
             else:
                 # not labeled or verified
                 color = (192, 64, 64)
+
+            status_colors.append(color)
+
+        return status_colors
+
+    def gen_status_image(self, all_status, width, height, border):
+        result = np.zeros((height, width, 3), np.uint8)
+
+        approx_width = (width - (len(all_status) + 1) * border) / len(all_status)
+        status_colors = self.get_status_colors(all_status)
+        last_x = 0
+        for idx, color in enumerate(status_colors):
+            left = last_x + border
+            right = left + approx_width
 
             result[border:-border, int(left):int(right), :] = color
             last_x = right
@@ -206,8 +274,15 @@ class ChartMainAnnotator(Screen):
         self.return_screen = None
         print("APPLICATION FINISHED")
 
+    def update_annotation_times(self, chart_annotation_times):
+        print("HERE!!")
+        self.annotation_times.update_stats(chart_annotation_times)
+
     def refresh_page(self):
         self.load_page(None, self.current_page, True)
+        self.update_selected_image_info()
+        if self.admin_mode:
+            print(str(self.annotation_times))
 
     def load_page(self, paginator, new_page, refresh=False):
         if new_page == self.current_page and not refresh:
@@ -253,9 +328,10 @@ class ChartMainAnnotator(Screen):
                 else:
                     status_ints = ImageInfo.GetAllStatuses(None)
 
+                self.cache_raw_status[idx] = status_ints
+
                 status = self.gen_status_image(status_ints, self.tb_width, self.tb_progress_h, self.tb_progress_border)
                 self.thumbnails_status[idx].set_image(status, self.tb_width, self.tb_progress_h)
-
                 self.thumbnails_labels[idx].set_text(chart_path[1:])
 
                 self.thumbnails_images[idx].visible = True
@@ -263,6 +339,7 @@ class ChartMainAnnotator(Screen):
                 self.thumbnails_labels[idx].visible = True
             else:
                 # special case for the last page ...
+                self.cache_raw_status[idx] = None
                 self.thumbnails_images[idx].visible = False
                 self.thumbnails_status[idx].visible = False
                 self.thumbnails_labels[idx].visible = False
@@ -289,22 +366,48 @@ class ChartMainAnnotator(Screen):
                 self.thumbnails_images[idx].border_color = (255, 0, 0)
 
                 self.thumbnails_labels[idx].set_color((255, 0, 0))
-
-                # update image ....
-                self.img_display.set_image(self.thumbnails_images[idx].original_image,
-                                           self.container_image_info.width - 20, self.container_image_info.width - 20,
-                                           True)
-                self.center_image_in_box(self.img_display, 10, 10, self.container_image_info.width - 20,
-                                         self.container_image_info.width - 20)
-                # update image name ...
-                self.img_title.set_text(self.thumbnails_labels[idx].text)
             else:
                 self.thumbnails_images[idx].border_width = 0
                 self.thumbnails_images[idx].border_color = (0, 0, 0)
 
                 self.thumbnails_labels[idx].set_color(self.text_color)
 
+        # update the panel on the right side
+        self.update_selected_image_info()
 
+    def update_selected_image_info(self):
+        # This simply updates the GUI of the selected image
+        # using self.selected_element
+
+        # update image ....
+        self.img_display.set_image(self.thumbnails_images[self.selected_element].original_image,
+                                   self.container_image_info.width - 20, self.container_image_info.width - 20,
+                                   True)
+        self.center_image_in_box(self.img_display, 10, 10, self.container_image_info.width - 20,
+                                 self.container_image_info.width - 20)
+
+        # update image name ...
+        self.img_title.set_text(self.thumbnails_labels[self.selected_element].text)
+
+        # update image status ...
+        raw_status = self.cache_raw_status[self.selected_element]
+        status_colors = self.get_status_colors(raw_status)
+
+        self.img_status_panels.background = status_colors[0]
+        self.img_status_panels.set_color(self.invert_color(status_colors[0]))
+        self.img_status_classes.background = status_colors[1]
+        self.img_status_classes.set_color(self.invert_color(status_colors[1]))
+        self.img_status_text.background = status_colors[2]
+        self.img_status_text.set_color(self.invert_color(status_colors[2]))
+        self.img_status_legend.background = status_colors[3]
+        self.img_status_legend.set_color(self.invert_color(status_colors[3]))
+        self.img_status_axis.background = status_colors[4]
+        self.img_status_axis.set_color(self.invert_color(status_colors[4]))
+        self.img_status_data.background = status_colors[5]
+        self.img_status_data.set_color(self.invert_color(status_colors[5]))
+
+    def invert_color(self, color):
+        return 255 - color[0], 255 - color[1], 255 - color[2]
 
     def center_image_in_box(self, screen_image, x, y, width, height):
         assert isinstance(screen_image, ScreenImage)

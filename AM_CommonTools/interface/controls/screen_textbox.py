@@ -19,6 +19,9 @@ class ScreenTextbox(ScreenElement):
         self.capture_EOL = False
 
         self.caret_position = len(text)
+        self.caret_visual_x = 0
+        self.caret_visual_y = 0
+        self.caret_visual_h = 0
 
         # check colors....
         # ...text...
@@ -37,12 +40,13 @@ class ScreenTextbox(ScreenElement):
 
         self.rendered = None
         self.inner_label = None
-        self.highlighted_car = None
-        self.highlighted_nocar = None
+        self.highlighted = None
         self.draw_caret = None
 
         # create an inner label
         self.updateText(text)
+
+        self.text_typed_callback = None
 
     def setPadding(self, top, right, bottom, left):
         self.padding = (top, right, bottom, left)
@@ -61,9 +65,7 @@ class ScreenTextbox(ScreenElement):
             new_text = new_text[:self.max_length]
             
         self.text = new_text
-        if move_caret_to_end:
-            self.caret_position = len(self.text)
-        
+
         # calculate max inner width for text...
         # width - padding_right - padding_left
         max_inner_width = self.width - (self.padding[1] + self.padding[3])
@@ -73,7 +75,11 @@ class ScreenTextbox(ScreenElement):
         self.inner_label.position = (self.padding[3], self.padding[0])
         self.inner_label.set_color( self.text_color )
         self.inner_label.set_background( self.back_color )
-        
+
+        if move_caret_to_end:
+            # self.caret_position = len(self.text)
+            self.__update_caret_position(len(self.text))
+
         base_height = self.inner_label.height
         
         self.height = self.original_height
@@ -88,32 +94,18 @@ class ScreenTextbox(ScreenElement):
         # create the normal view...
         self.inner_label.render(self.rendered)
 
-        no_caret_text = self.text[:self.caret_position] + " " + self.text[self.caret_position:]
-        caret_text = self.text[:self.caret_position] + "|" + self.text[self.caret_position:]
+        # now, create the highlighted view ...
+        self.inner_label.set_color(self.back_color)
+        self.inner_label.set_background(self.text_color)
         
-        # now, create the highlighted view without caret...
-        self.inner_label.set_text(no_caret_text)
-        self.inner_label.set_color( self.back_color )
-        self.inner_label.set_background( self.text_color )
+        self.highlighted = pygame.Surface((self.width, self.height))
+        self.highlighted.fill(self.text_color)
         
-        self.highlighted_nocar = pygame.Surface( (self.width, self.height ) )
-        self.highlighted_nocar.fill( self.text_color )
+        # render highlighted ...
+        self.inner_label.render(self.highlighted)
         
-        # render highlighted without caret...
-        self.inner_label.render( self.highlighted_nocar )
-        
-        # finally, create the highlighted view with caret...
-        # self.inner_label.set_text(self.text + '|' )
-        self.inner_label.set_text(caret_text)
         caret_height = self.inner_label.height
-        
-        self.highlighted_car = pygame.Surface( (self.width, self.height ) )
-        self.highlighted_car.fill( self.text_color )
-
-        # render highlighted without caret...
-        self.inner_label.render(self.highlighted_car)
-        
-        self.draw_caret = (base_height == caret_height) 
+        self.draw_caret = (base_height == caret_height)
         
         
     def render(self, background, off_x = 0, off_y = 0):
@@ -127,22 +119,24 @@ class ScreenTextbox(ScreenElement):
         
         #draw text on the background texture...
         if not self.is_highlighted:            
-            #normal view            
-            background.blit( self.rendered, (self.position[0] + off_x, self.position[1] + off_y ) )
+            # normal view
+            background.blit(self.rendered, (self.position[0] + off_x, self.position[1] + off_y))
             
-            pygame.draw.rect( background, self.text_color, rect, border_w)
+            pygame.draw.rect(background, self.text_color, rect, border_w)
         else:
             #highlighted view...
-            
             current_time = time.time()
             decimal = current_time - int(current_time)
 
-            if int((decimal * 100) / 25) % 2 == 0 or not self.draw_caret:
-                # without caret
-                background.blit( self.highlighted_nocar, (self.position[0] + off_x, self.position[1] + off_y ) )
-            else:
-                #with caret
-                background.blit( self.highlighted_car, (self.position[0] + off_x, self.position[1] + off_y ) )
+            # draw text ...
+            background.blit(self.highlighted, (self.position[0] + off_x, self.position[1] + off_y))
+
+            if int((decimal * 100) / 25) % 2 == 0 and self.draw_caret:
+                # with caret
+                draw_caret_x = self.position[0] + off_x + self.inner_label.position[0] + self.caret_visual_x
+                draw_caret_y = self.position[1] + off_y + self.inner_label.position[1] + self.caret_visual_y
+                caret_rect = (draw_caret_x, draw_caret_y, 3, self.caret_visual_h)
+                pygame.draw.rect(background, self.back_color, caret_rect, 0)
 
             pygame.draw.rect( background, self.back_color, rect, border_w)
     
@@ -150,12 +144,20 @@ class ScreenTextbox(ScreenElement):
         #get focus...
         if button == 1:
             self.set_focus()
-            
-            
+
+            click_x = pos[0] - self.position[0] - self.inner_label.position[0]
+            click_y = pos[1] - self.position[1] - self.inner_label.position[1]
+
+            # first, determine the line clicked ...
+            # if len(self.)
+            offset = self.inner_label.get_visual_position_closest_character(click_x, click_y)
+
+            self.__update_caret_position(offset)
+
     def set_focus(self):
-        #request focus from parent...
+        # request focus from parent...
         got_focus = self.parent.set_text_focus( self )
-        #set focus....
+        # set focus....
         self.is_highlighted = got_focus
             
     def lost_focus(self):
@@ -163,56 +165,89 @@ class ScreenTextbox(ScreenElement):
         self.is_highlighted = False
 
     def on_key_up(self, scancode, key, unicode):
+        text_changed = False
+        current_lines = self.total_lines()
         if self.is_highlighted:
             if len(unicode) > 0:
                 if key == 27:
-                    #print "ESCAPE!"
+                    # "ESCAPE!"
                     self.is_highlighted = False
                 elif key == 13:
-                    #print "ENTER!"
+                    # "ENTER!"
                     if self.capture_EOL:
                         new_text = self.text[:self.caret_position] + "\n" + self.text[self.caret_position:]
-                        self.caret_position += 1
                         self.updateText(new_text, False)
+                        self.__update_caret_position(self.caret_position + 1)
+                        text_changed = True
                 elif key == 8:
-                    #print "BACKSPACE!"
+                    # "BACKSPACE!"
                     if self.caret_position > 0:
                         new_text = self.text[:self.caret_position - 1] + self.text[self.caret_position:]
-                        self.caret_position -= 1
                         self.updateText(new_text, False)
+                        self.__update_caret_position(self.caret_position - 1)
+                        text_changed = True
                 elif key == 9:
+                    # "TAB!"
                     pass
-                    #print "TAB!"
                 else:
+                    # any other non-control key?
                     new_text = self.text[:self.caret_position] + unicode + self.text[self.caret_position:]
-                    self.caret_position += 1
                     self.updateText(new_text, False)
+                    self.__update_caret_position(self.caret_position + 1)
+                    text_changed = True
             else:
-                #print "CONTROL KEY!"
+                # "CONTROL KEY!"
                 # print((scancode, key, unicode))
                 if key == 263 or key == 278:
                     # home ...
-                    self.caret_position = 0
-                    self.updateText(self.text, False)
-
+                    self.__update_caret_position(0)
                 elif key == 257 or key == 279:
                     # end ....
-                    self.caret_position = len(self.text)
-                    self.updateText(self.text, False)
-
+                    self.__update_caret_position(len(self.text))
                 elif key == 127 or key == 266:
                     # Delete ....
                     new_text = self.text[:self.caret_position] + self.text[self.caret_position + 1:]
                     self.updateText(new_text, False)
-
+                    text_changed = True
                 elif key == 276:
                     # LEFT cursor?
-                    if self.caret_position > 0:
-                        self.caret_position -= 1
-                        self.updateText(self.text, False)
-
+                    self.__update_caret_position(self.caret_position - 1)
                 elif key == 275:
                     # RIGHT cursor
-                    if self.caret_position < len(self.text):
-                        self.caret_position += 1
-                        self.updateText(self.text, False)
+                    self.__update_caret_position(self.caret_position + 1)
+                elif key == 273:
+                    # UP cursor
+                    car_line, car_column = self.inner_label.get_character_line_column(self.caret_position)
+                    if car_line > 0:
+                        # move a line up ..
+                        new_caret_pos = self.inner_label.line_column_to_offset(car_line - 1, car_column)
+                        self.__update_caret_position(new_caret_pos)
+                elif key == 274:
+                    # DOWN cursor
+                    car_line, car_column = self.inner_label.get_character_line_column(self.caret_position)
+                    if car_line + 1 < self.inner_label.total_lines():
+                        # move a line down ..
+                        new_caret_pos = self.inner_label.line_column_to_offset(car_line + 1, car_column)
+                        self.__update_caret_position(new_caret_pos)
+
+        # if the input key changed the contents ...
+        if text_changed:
+            # and there is a listener ...
+            if self.text_typed_callback is not None:
+                # notify!
+                new_lines = self.total_lines()
+                self.text_typed_callback(self, current_lines != new_lines)
+
+    def __update_caret_position(self, new_caret_position):
+        if new_caret_position < 0 or new_caret_position > len(self.text):
+            # invalid new caret position ... ignore
+            return
+
+        self.caret_position = new_caret_position
+
+        # identify the location of the caret on the text label ...
+        visual_pos = self.inner_label.get_character_visual_position(self.caret_position)
+        self.caret_visual_x, self.caret_visual_y, self.caret_visual_h = visual_pos
+
+    def total_lines(self):
+        return self.inner_label.total_lines()
