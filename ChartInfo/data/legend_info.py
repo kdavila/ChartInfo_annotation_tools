@@ -25,6 +25,21 @@ class LegendInfo:
         # no un-labeled markers found, assume it is complete
         return True
 
+    def get_marker_median_color(self, panel_img, entry_id):
+        if entry_id is None or not entry_id in self.marker_per_label:
+            return None
+
+        marker = self.marker_per_label[entry_id]
+        marker_min_x, marker_max_x = int(marker[:, 0].min()), int(marker[:, 0].max())
+        marker_min_y, marker_max_y = int(marker[:, 1].min()), int(marker[:, 1].max())
+
+        marker_img = panel_img[marker_min_y:marker_max_y, marker_min_x:marker_max_x]
+        marker_median_r = np.median(marker_img[:, :, 0])
+        marker_median_g = np.median(marker_img[:, :, 1])
+        marker_median_b = np.median(marker_img[:, :, 2])
+
+        return marker_median_r, marker_median_g, marker_median_b
+
     def get_legend_orientation(self):
         if len(self.text_labels) <= 1:
             # by default ...

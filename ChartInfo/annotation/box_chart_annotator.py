@@ -30,6 +30,7 @@ class BoxChartAnnotator(Screen):
     DataBoxMaximum = 2
     DataWhiskerMinimum = 3
     DataWhiskerMaximum = 4
+    DataBoxSliders = 5
 
     ViewModeRawData = 0
     ViewModeGrayData = 1
@@ -155,6 +156,7 @@ class BoxChartAnnotator(Screen):
         self.btn_data_box_maximum = None
         self.btn_data_whisker_minimum = None
         self.btn_data_whisker_maximum = None
+        self.btn_data_boxes_sliders = None
         self.btn_data_return = None
 
         self.container_images = None
@@ -619,9 +621,15 @@ class BoxChartAnnotator(Screen):
         self.lbl_data_title.set_color(self.text_color)
         self.container_data_buttons.append(self.lbl_data_title)
 
+        self.btn_data_boxes_sliders = ScreenButton("btn_data_boxes_sliders", "Adjust All by Dragging", 21, button_width)
+        self.btn_data_boxes_sliders.set_colors(button_text_color, button_back_color)
+        self.btn_data_boxes_sliders.position = (button_left, self.lbl_data_title.get_bottom() + 20)
+        self.btn_data_boxes_sliders.click_callback = self.btn_data_boxes_sliders_click
+        self.container_data_buttons.append(self.btn_data_boxes_sliders)
+
         self.btn_data_whisker_maximum = ScreenButton("btn_data_whisker_maximum", "Adjust Whiskers Maxs", 21, button_width)
         self.btn_data_whisker_maximum.set_colors(button_text_color, button_back_color)
-        self.btn_data_whisker_maximum.position = (button_left, self.lbl_data_title.get_bottom() + 20)
+        self.btn_data_whisker_maximum.position = (button_left, self.btn_data_boxes_sliders.get_bottom() + 20)
         self.btn_data_whisker_maximum.click_callback = self.btn_data_whisker_maximum_click
         self.container_data_buttons.append(self.btn_data_whisker_maximum)
 
@@ -679,6 +687,7 @@ class BoxChartAnnotator(Screen):
         self.canvas_display = ScreenCanvas("canvas_display", 100, 100)
         self.canvas_display.position = (0, 0)
         self.canvas_display.locked = True
+        self.canvas_display.object_edited_callback = self.canvas_object_edited
         self.container_images.append(self.canvas_display)
 
         self.prepare_number_controls()
@@ -837,9 +846,12 @@ class BoxChartAnnotator(Screen):
                         # ... index for quicker mapping between boxes to click positions ....
                         self.tempo_box_polygon_index.append((series_idx, cat_idx))
 
-                        # Next box in the current grouping
-                        # box width + distance between contiguous boxes
-                        box_start += box_width + box_inner_dist
+                        # move to end of the box ... (+ width)
+                        box_start += box_width
+                        # check if move to the next box on same grouping
+                        if group_idx + 1 < len(self.data.box_sorting.order):
+                            # + distance between contiguous bars
+                            box_start += box_inner_dist
 
                     # next group of boxes ...
                     box_start += box_outer_dist
@@ -869,8 +881,11 @@ class BoxChartAnnotator(Screen):
                         # ... index for quicker mapping between boxes to click positions ....
                         self.tempo_box_polygon_index.append((series_idx, cat_idx))
 
-                        # next stack of boxes on same grouping
-                        box_start += box_width + box_inner_dist
+                        # move to the end of the box
+                        box_start += box_width
+                        # check if move to the next box on same grouping
+                        if cat_idx + 1 < len(self.data.categories):
+                            box_start += box_inner_dist
 
                     # next group of boxes ...
                     box_start += box_outer_dist
@@ -881,11 +896,17 @@ class BoxChartAnnotator(Screen):
             bottom_whiskers = np.array(bottom_whiskers).round().astype(np.int32)
             top_whiskers = np.array(top_whiskers).round().astype(np.int32)
 
+            if (self.edition_mode == BoxChartAnnotator.ModeDataSelect and
+                self.tempo_data_editing == BoxChartAnnotator.DataBoxSliders):
+                col_val = 128
+            else:
+                col_val = 255
+
             self.tempo_box_polygons = boxes_lines
-            modified_image = cv2.polylines(modified_image, boxes_lines, True, (255, 0, 0))
-            modified_image = cv2.polylines(modified_image, medians_lines, False, (0, 255, 0))
-            modified_image = cv2.polylines(modified_image, bottom_whiskers, False, (0, 0, 255))
-            modified_image = cv2.polylines(modified_image, top_whiskers, False, (0, 0, 255))
+            modified_image = cv2.polylines(modified_image, boxes_lines, True, (col_val, 0, 0))
+            modified_image = cv2.polylines(modified_image, medians_lines, False, (0, col_val, 0))
+            modified_image = cv2.polylines(modified_image, bottom_whiskers, False, (0, 0, col_val))
+            modified_image = cv2.polylines(modified_image, top_whiskers, False, (0, 0, col_val))
 
         else:
             self.canvas_display.visible = False
@@ -908,8 +929,13 @@ class BoxChartAnnotator(Screen):
             self.set_editor_mode(BoxChartAnnotator.ModeNavigate)
 
         elif self.edition_mode == BoxChartAnnotator.ModeDataSelect:
+            # remove any canvas objects and lock the canvas
+            self.canvas_display.clear()
+            self.canvas_display.locked = True
+
             # back to regular data edit ...
             self.set_editor_mode(BoxChartAnnotator.ModeDataEdit)
+            self.update_current_view()
 
         else:
             print(self.edition_mode)
@@ -921,11 +947,16 @@ class BoxChartAnnotator(Screen):
             self.return_screen = self.parent_screen
 
         elif self.edition_mode == BoxChartAnnotator.ModeDataSelect:
+            # remove any canvas objects and lock the canvas
+            self.canvas_display.clear()
+            self.canvas_display.locked = True
+
             # copy temporal information ... overwrite previous
             self.data.boxes = self.tempo_box_values
             self.data_changed = True
             # return ...
             self.set_editor_mode(BoxChartAnnotator.ModeDataEdit)
+            self.update_current_view()
 
         else:
             raise Exception("Not Implemented")
@@ -944,16 +975,138 @@ class BoxChartAnnotator(Screen):
         self.set_editor_mode(BoxChartAnnotator.ModeGroupingEdit)
         self.update_grouping()
 
+    def update_tempo_box_params_labels(self):
+        self.lbl_parameters_offset.set_text("Offset: {0:.1f}".format(self.tempo_decimal_offset / 10.0))
+        self.lbl_parameters_width.set_text("Width: {0:.1f}".format(self.tempo_decimal_width / 10.0))
+        self.lbl_parameters_inner_dist.set_text("Inner Distance: {0:.1f}".format(self.tempo_decimal_inner_dist / 10.0))
+        self.lbl_parameters_outer_dist.set_text("Outer Distance: {0:.1f}".format(self.tempo_decimal_outer_dist / 10.0))
+
+    def get_slider_positions_from_box_params(self):
+        box_offset = self.tempo_decimal_offset / 10
+        box_width = self.tempo_decimal_width / 10
+        box_inner_dist = self.tempo_decimal_inner_dist / 10
+        box_outer_dist = self.tempo_decimal_outer_dist / 10
+
+        x1, y1, x2, y2 = self.panel_info.axes.bounding_box
+
+        if self.data.box_vertical:
+            # assume left to right
+            box_start = x1 + box_offset
+        else:
+            # assume top to bottom
+            box_start = y1 + box_offset
+
+        if self.data.box_grouping == BoxData.GroupingByCategory:
+            # boxes are grouped by categorical value ...
+            n_groups = len(self.data.categories)
+            n_boxes_per_group = len(self.data.box_sorting.order)
+        else:
+            # boxes are grouped by stacks of data series
+            n_groups = len(self.data.box_sorting.order)
+            n_boxes_per_group = len(self.data.categories)
+
+        group_size = box_width * n_boxes_per_group + box_inner_dist * (n_boxes_per_group - 1)
+
+        first_group_end = box_start + group_size
+        last_group_end = box_start + group_size * n_groups + box_outer_dist * (n_groups - 1)
+
+        slider_positions = [box_start, box_start + box_width, first_group_end, last_group_end]
+
+        return slider_positions
+
+    def update_slider_from_box_params(self, add=False):
+        x1, y1, x2, y2 = self.panel_info.axes.bounding_box
+        if self.data.box_vertical:
+            # position at middle left
+            slide_p_y = (y1 + y2) / 2
+            slide_p_x = x1
+            base_length = (x2 - x1) * self.view_scale
+        else:
+            # position at top middle
+            slide_p_y = y1
+            slide_p_x = (x1 + x2) / 2
+            base_length = (y2 - y1) * self.view_scale
+        slide_p = slide_p_x * self.view_scale, slide_p_y * self.view_scale
+        slider_length = 100
+        slider_positions = [val * self.view_scale for val in self.get_slider_positions_from_box_params()]
+
+        if add:
+            # add new slider controller ...
+            self.canvas_display.add_slider_element("box_params", slide_p, not self.data.box_vertical, base_length,
+                                                   slider_length, slider_positions, (164, 192,0), (92, 128,0))
+            self.canvas_display.elements["box_params"].visible = True
+        else:
+            # update slider controller ...
+            self.canvas_display.update_slider_element("box_params", slide_p, not self.data.box_vertical, base_length,
+                                                      slider_length, slider_positions, True)
+
+    def update_box_params_from_slider(self):
+        # get slider positions (on screen space)
+        raw_positions = self.canvas_display.elements["box_params"].get_slider_positions()
+        # convert from screen space to image space ...
+        img_positions = [val / self.view_scale for val in raw_positions]
+        # split ...
+        first_box_start, first_box_end, first_group_end, last_group_end = img_positions
+
+        # get the four parameters ...
+        x1, y1, x2, y2 = self.panel_info.axes.bounding_box
+
+        if self.data.box_vertical:
+            # assume left to right
+            box_offset = first_box_start - x1
+        else:
+            # assume top to bottom
+            box_offset = first_box_start - y1
+
+        if self.data.box_grouping == BoxData.GroupingByCategory:
+            # boxes are grouped by categorical value ...
+            n_groups = len(self.data.categories)
+            n_boxes_per_group = len(self.data.box_sorting.order)
+        else:
+            # boxes are grouped by stacks of data series
+            n_groups = len(self.data.box_sorting.order)
+            n_boxes_per_group = len(self.data.categories)
+
+        # compute the width (easy)
+        box_width = first_box_end - first_box_start
+
+        # compute the space between boxes of the same group
+        # (given width, num of boxes per group and ending of the first group)
+        group_size = first_group_end - first_box_start
+        if n_boxes_per_group > 1:
+            box_inner_dist = (group_size - box_width * n_boxes_per_group) / (n_boxes_per_group - 1)
+        else:
+            box_inner_dist = 0
+
+        # compute the space between groups
+        # (given the group size, number of groups and ending of last group)
+        all_boxes_size = last_group_end - first_box_start
+        if n_groups > 1:
+            box_outer_dist = (all_boxes_size - group_size * n_groups) / (n_groups - 1)
+        else:
+            box_outer_dist = 0
+
+        self.tempo_decimal_offset = int(round(box_offset * 10))
+        self.tempo_decimal_width = int(round(box_width * 10))
+        self.tempo_decimal_inner_dist = int(round(box_inner_dist * 10))
+        self.tempo_decimal_outer_dist = int(round(box_outer_dist * 10))
+        self.data_changed = True
+
+        self.update_tempo_box_params_labels()
+
     def btn_edit_parameters_click(self, button):
         self.tempo_decimal_offset = int(round(self.data.box_offset * 10))
         self.tempo_decimal_width = int(round(self.data.box_width * 10))
         self.tempo_decimal_inner_dist = int(round(self.data.box_inner_dist * 10))
         self.tempo_decimal_outer_dist = int(round(self.data.box_outer_dist * 10))
 
-        self.lbl_parameters_offset.set_text("Offset: {0:.1f}".format(self.tempo_decimal_offset / 10.0))
-        self.lbl_parameters_width.set_text("Width: {0:.1f}".format(self.tempo_decimal_width / 10.0))
-        self.lbl_parameters_inner_dist.set_text("Inner Distance: {0:.1f}".format(self.tempo_decimal_inner_dist / 10.0))
-        self.lbl_parameters_outer_dist.set_text("Outer Distance: {0:.1f}".format(self.tempo_decimal_outer_dist / 10.0))
+        self.update_tempo_box_params_labels()
+
+        # convert the parameters of the bar into slider positions ...
+        # and show the slider in the canvas
+        self.update_slider_from_box_params(True)
+        # allow edition ...
+        self.canvas_display.locked = False
 
         self.set_editor_mode(BoxChartAnnotator.ModeParameterEdit)
         self.update_current_view()
@@ -1009,6 +1162,8 @@ class BoxChartAnnotator(Screen):
                 self.lbl_confirm_message.set_text("Click on Whiskers Minimums")
             elif self.tempo_data_editing == BoxChartAnnotator.DataWhiskerMaximum:
                 self.lbl_confirm_message.set_text("Click on Whiskers Maximums")
+            elif self.tempo_data_editing == BoxChartAnnotator.DataBoxSliders:
+                self.lbl_confirm_message.set_text("Drag Box Elements")
             else:
                 raise Exception("Invalid Data Edition Element Selected")
 
@@ -1022,6 +1177,10 @@ class BoxChartAnnotator(Screen):
     def img_mouse_down(self, img_object, pos, button):
         if button == 1:
             if self.edition_mode == BoxChartAnnotator.ModeDataSelect:
+                if self.tempo_data_editing == BoxChartAnnotator.DataBoxSliders:
+                    # ignore clicks in this mode ....
+                    return
+
                 # click pos ...
                 click_x, click_y = pos
                 click_x /= self.view_scale
@@ -1077,9 +1236,7 @@ class BoxChartAnnotator(Screen):
                             box.set_whisker_min(click_value)
 
                         self.update_current_view()
-
                         break
-
 
     def prepare_number_controls(self):
         n_boxes = self.data.total_boxes()
@@ -1364,6 +1521,7 @@ class BoxChartAnnotator(Screen):
 
         self.data_changed = True
         self.lbl_parameters_offset.set_text("Offset: {0:.1f}".format(self.tempo_decimal_offset / 10.0))
+        self.update_slider_from_box_params(False)
         self.update_current_view()
 
     def btns_parameters_move_width_click(self, button):
@@ -1372,6 +1530,7 @@ class BoxChartAnnotator(Screen):
 
         self.data_changed = True
         self.lbl_parameters_width.set_text("Width: {0:.1f}".format(self.tempo_decimal_width / 10.0))
+        self.update_slider_from_box_params(False)
         self.update_current_view()
 
     def btns_parameters_move_inner_dist_click(self, button):
@@ -1380,6 +1539,7 @@ class BoxChartAnnotator(Screen):
 
         self.data_changed = True
         self.lbl_parameters_inner_dist.set_text("Inner Distance: {0:.1f}".format(self.tempo_decimal_inner_dist / 10.0))
+        self.update_slider_from_box_params(False)
         self.update_current_view()
 
     def btns_parameters_move_outer_dist_click(self, button):
@@ -1388,6 +1548,7 @@ class BoxChartAnnotator(Screen):
 
         self.data_changed = True
         self.lbl_parameters_outer_dist.set_text("Outer Distance: {0:.1f}".format(self.tempo_decimal_outer_dist / 10.0))
+        self.update_slider_from_box_params(False)
         self.update_current_view()
 
     def btn_parameters_return_accept_click(self, button):
@@ -1396,13 +1557,90 @@ class BoxChartAnnotator(Screen):
         self.data.box_inner_dist = self.tempo_decimal_inner_dist / 10
         self.data.box_outer_dist = self.tempo_decimal_outer_dist / 10
 
+        # remove box_params slider
+        self.canvas_display.clear()
+        self.canvas_display.locked = True
+
         # return
         self.set_editor_mode(BoxChartAnnotator.ModeNavigate)
         self.update_current_view()
 
     def btn_parameters_return_cancel_click(self, button):
+        # remove box_params slider
+        self.canvas_display.clear()
+        self.canvas_display.locked = True
+
         # just return ...
         self.set_editor_mode(BoxChartAnnotator.ModeNavigate)
+        self.update_current_view()
+
+    def prepare_sliders_for_boxes(self):
+        x1, y1, x2, y2 = self.panel_info.axes.bounding_box
+
+        for box_idx, polygon in enumerate(self.tempo_box_polygons):
+            # get box and it's meta-data
+            series_idx, cat_idx = self.tempo_box_polygon_index[box_idx]
+            box = self.tempo_box_values[series_idx][cat_idx]
+
+            if self.data.box_vertical:
+                # Min and max on Dim 0 (X Coord)
+                box_start = polygon[:, 0].min()
+                box_end = polygon[:, 0].max()
+
+                # vertical boxes ... create from top to bottom
+                slide_p_x = (box_start + box_end) / 2.0
+                slide_p_y = y1
+                base_length = (y2 - y1) * self.view_scale
+
+                # the raw values assume that they start at the bottom
+                # but the slider starts from the top ... invert the order of the box elements
+                # whisker top, box max, box med, box min, whisker bottom
+                pos_1 = y2 - box.whiskers_max
+                pos_2 = y2 - box.box_max
+                pos_3 = y2 - box.box_median
+                pos_4 = y2 - box.box_min
+                pos_5 = y2 - box.whiskers_min
+            else:
+                # Min and max on Dim 1 (Y Coord)
+                box_start = polygon[:, 1].min()
+                box_end = polygon[:, 1].max()
+
+                # horizontal boxes ... create from left to right
+                slide_p_x = x1
+                slide_p_y = (box_start + box_end) / 2.0
+                base_length = (x2 - x1) * self.view_scale
+
+                # assume they start at the left
+                box_baseline = x1
+                # use the original order of elements
+                # whisker min, box min, box median, box max, whisker top
+                pos_1 = x1 + box.whiskers_min
+                pos_2 = x1 + box.box_min
+                pos_3 = x1 + box.box_median
+                pos_4 = x1 + box.box_max
+                pos_5 = x1 + box.whiskers_max
+
+            slide_p = slide_p_x * self.view_scale, slide_p_y * self.view_scale
+            slider_length = (box_end - box_start) * self.view_scale
+
+            slider_positions = [val * self.view_scale for val in [pos_1, pos_2, pos_3, pos_4, pos_5]]
+
+            slider_name = "box_data_{0:d}_{1:d}".format(series_idx, cat_idx)
+            self.canvas_display.add_slider_element(slider_name, slide_p, self.data.box_vertical, base_length,
+                                               slider_length, slider_positions, (0, 255, 255), (0, 192, 192))
+            self.canvas_display.elements[slider_name].visible = True
+
+    def btn_data_boxes_sliders_click(self, button):
+        # copy box data to temporal ...
+        self.tempo_box_values = self.data.get_boxes()
+
+        # add sliders for all boxes ...
+        self.prepare_sliders_for_boxes()
+        self.canvas_display.locked = False
+
+        # set edit mode ....
+        self.tempo_data_editing = BoxChartAnnotator.DataBoxSliders
+        self.set_editor_mode(BoxChartAnnotator.ModeDataSelect)
         self.update_current_view()
 
     def btn_data_whisker_maximum_click(self, button):
@@ -1448,4 +1686,41 @@ class BoxChartAnnotator(Screen):
     def btn_data_return_click(self, button):
         self.set_editor_mode(BoxChartAnnotator.ModeNavigate)
         self.update_current_view()
+
+    def canvas_object_edited(self, canvas, element_name):
+        if element_name == "box_params":
+            self.update_box_params_from_slider()
+            self.update_current_view()
+        elif element_name[:8] == "box_data":
+            _, _, series_idx, cat_idx = element_name.split("_")
+            series_idx = int(series_idx)
+            cat_idx = int(cat_idx)
+
+            box = self.tempo_box_values[series_idx][cat_idx]
+
+            # get raw values ... on screen space
+            raw_values = self.canvas_display.elements[element_name].get_slider_positions()
+            # convert to image space ...
+            img_values = [(val / self.view_scale) for val in raw_values]
+
+            x1, y1, x2, y2 = self.panel_info.axes.bounding_box
+            if self.data.box_vertical:
+                # slider starts from top to bottom ... and box elements are inverted ...
+                # whisker top, box max, box med, box min, whisker bottom
+                box.set_whisker_max(y2 - img_values[0])
+                box.set_box_max(y2 - img_values[1])
+                box.set_box_median(y2 - img_values[2])
+                box.set_box_min(y2 - img_values[3])
+                box.set_whisker_min(y2 - img_values[4])
+            else:
+                # assume they start at the left
+                # use the original order of elements
+                # whisker min, box min, box median, box max, whisker top
+                box.set_whisker_min(img_values[0] - x1)
+                box.set_box_min(img_values[1] - x1)
+                box.set_box_median(img_values[2] - x1)
+                box.set_box_max(img_values[3] - x1)
+                box.set_whisker_max(img_values[4] - x1)
+
+            self.update_current_view()
 

@@ -61,6 +61,7 @@ class ScatterChartAnnotator(Screen):
         self.tempo_scatter_index = None
         self.tempo_point_index = None
         self.tempo_scatter_values = None
+        self.tempo_canvas_name = None
 
         self.view_mode = ScatterChartAnnotator.ViewModeRawData
         self.view_scale = 1.0
@@ -380,33 +381,33 @@ class ScatterChartAnnotator(Screen):
         self.lbx_scatter_points.selected_value_change_callback = self.lbx_scatter_points_value_changed
         self.container_scatter_buttons.append(self.lbx_scatter_points)
 
-        self.btn_scatter_point_edit = ScreenButton("btn_scatter_point_edit", "Edit Point", 21, button_2_width)
-        self.btn_scatter_point_edit.set_colors(button_text_color, button_back_color)
-        self.btn_scatter_point_edit.position = (button_2_left, self.lbx_scatter_points.get_bottom() + 10)
-        self.btn_scatter_point_edit.click_callback = self.btn_scatter_point_edit_click
-        self.container_scatter_buttons.append(self.btn_scatter_point_edit)
-
-        self.btn_scatter_point_delete = ScreenButton("btn_scatter_point_delete", "Remove Point", 21, button_2_width)
-        self.btn_scatter_point_delete.set_colors(button_text_color, button_back_color)
-        self.btn_scatter_point_delete.position = (button_2_right, self.lbx_scatter_points.get_bottom() + 10)
-        self.btn_scatter_point_delete.click_callback = self.btn_scatter_point_delete_click
-        self.container_scatter_buttons.append(self.btn_scatter_point_delete)
-
-        self.btn_scatter_point_add = ScreenButton("btn_scatter_point_add", "Add Points", 21, button_width)
+        self.btn_scatter_point_add = ScreenButton("btn_scatter_point_add", "Add Points", 21, button_2_width)
         self.btn_scatter_point_add.set_colors(button_text_color, button_back_color)
-        self.btn_scatter_point_add.position = (button_left, self.btn_scatter_point_edit.get_bottom() + 10)
+        self.btn_scatter_point_add.position = (button_2_left, self.lbx_scatter_points.get_bottom() + 10)
         self.btn_scatter_point_add.click_callback = self.btn_scatter_point_add_click
         self.container_scatter_buttons.append(self.btn_scatter_point_add)
 
+        self.btn_scatter_point_edit = ScreenButton("btn_scatter_point_edit", "Edit Points", 21, button_2_width)
+        self.btn_scatter_point_edit.set_colors(button_text_color, button_back_color)
+        self.btn_scatter_point_edit.position = (button_2_right, self.lbx_scatter_points.get_bottom() + 10)
+        self.btn_scatter_point_edit.click_callback = self.btn_scatter_point_edit_click
+        self.container_scatter_buttons.append(self.btn_scatter_point_edit)
+
+        self.btn_scatter_point_delete = ScreenButton("btn_scatter_point_delete", "Remove Point", 21, button_width)
+        self.btn_scatter_point_delete.set_colors(button_text_color, button_back_color)
+        self.btn_scatter_point_delete.position = (button_left, self.btn_scatter_point_add.get_bottom() + 10)
+        self.btn_scatter_point_delete.click_callback = self.btn_scatter_point_delete_click
+        self.container_scatter_buttons.append(self.btn_scatter_point_delete)
+
         self.btn_scatter_return_accept = ScreenButton("btn_scatter_return_accept", "Accept", 21, button_2_width)
         self.btn_scatter_return_accept.set_colors(button_text_color, button_back_color)
-        self.btn_scatter_return_accept.position = (button_2_left, self.btn_scatter_point_add.get_bottom() + 20)
+        self.btn_scatter_return_accept.position = (button_2_left, self.btn_scatter_point_delete.get_bottom() + 20)
         self.btn_scatter_return_accept.click_callback = self.btn_scatter_return_accept_click
         self.container_scatter_buttons.append(self.btn_scatter_return_accept)
 
         self.btn_scatter_return_cancel = ScreenButton("btn_scatter_return_cancel", "Cancel", 21, button_2_width)
         self.btn_scatter_return_cancel.set_colors(button_text_color, button_back_color)
-        self.btn_scatter_return_cancel.position = (button_2_right, self.btn_scatter_point_add.get_bottom() + 20)
+        self.btn_scatter_return_cancel.position = (button_2_right, self.btn_scatter_point_delete.get_bottom() + 20)
         self.btn_scatter_return_cancel.click_callback = self.btn_scatter_return_cancel_click
         self.container_scatter_buttons.append(self.btn_scatter_return_cancel)
 
@@ -532,8 +533,8 @@ class ScatterChartAnnotator(Screen):
             # close the data area rectangle ?
             # cv2.line(modified_image, (x2, y1), (x2, y2), (0, 128, 0), thickness=1)
             # cv2.line(modified_image, (x1, y1), (x2, y1), (0, 0, 128), thickness=1)
-
-            # check which lines will be drawn ...
+            """
+            # check which data series will be drawn ...
             if self.edition_mode in [ScatterChartAnnotator.ModeSeriesEdit,
                                      ScatterChartAnnotator.ModePointAdd,
                                      ScatterChartAnnotator.ModePointEdit]:
@@ -563,7 +564,7 @@ class ScatterChartAnnotator(Screen):
                     else:
                         # filled small circle
                         cv2.circle(modified_image, current_point, 3, line_color, thickness=-1)
-
+            """
         else:
             self.canvas_display.visible = False
 
@@ -583,9 +584,25 @@ class ScatterChartAnnotator(Screen):
         if self.edition_mode in [ScatterChartAnnotator.ModeConfirmExit]:
             # return to navigation
             self.set_editor_mode(ScatterChartAnnotator.ModeNavigate)
-
-        elif self.edition_mode in [ScatterChartAnnotator.ModePointAdd, ScatterChartAnnotator.ModePointEdit]:
-            # return to line edition mode ...
+        elif self.edition_mode in [ScatterChartAnnotator.ModePointAdd]:
+            # return to series edition mode ...
+            self.update_points_list()
+            self.set_editor_mode(ScatterChartAnnotator.ModeSeriesEdit)
+        elif self.edition_mode in [ScatterChartAnnotator.ModePointEdit]:
+            # copy data from Canvas to the structure ....
+            canvas_points = self.canvas_display.elements[self.tempo_canvas_name].points
+            print(self.tempo_scatter_values.points)
+            for point_idx, (px, py) in enumerate(canvas_points):
+                # like clicks, canvas uses visual position,
+                # convert coordinates from the canvas to image coordinate
+                # using the same function used the mouse clicks
+                rel_x, rel_y = self.from_pos_to_rel_click((px, py))
+                # set new position for this point ...
+                self.tempo_scatter_values.set_point(point_idx, rel_x, rel_y)
+            print(self.tempo_scatter_values.points)
+            # lock the canvas ...
+            self.canvas_display.locked = True
+            # return to series edition mode ...
             self.update_points_list()
             self.set_editor_mode(ScatterChartAnnotator.ModeSeriesEdit)
         else:
@@ -631,6 +648,7 @@ class ScatterChartAnnotator(Screen):
         if data_series_changed:
             self.fill_data_series_list(self.lbx_number_series_values)
 
+        self.create_canvas_point_sets()
         self.update_current_view()
 
     def btn_number_series_add_click(self, button):
@@ -668,8 +686,9 @@ class ScatterChartAnnotator(Screen):
         click_y /= self.view_scale
 
         x1, y1, x2, y2 = self.panel_info.axes.bounding_box
-        x1 = int(x1)
-        y2 = int(y2)
+        # x1 = int(x1)
+        # y2 = int(y2)
+        # print((x1, x2))
 
         rel_x = click_x - x1
         rel_y = y2 - click_y
@@ -682,15 +701,12 @@ class ScatterChartAnnotator(Screen):
                 # click pos ...
                 rel_x, rel_y = self.from_pos_to_rel_click(pos)
 
-                if self.edition_mode == ScatterChartAnnotator.ModePointEdit:
-                    # set new position for point being edited ...
-                    self.tempo_scatter_values.set_point(self.tempo_point_index, rel_x, rel_y)
-                    # go back to previous mode
-                    self.update_points_list()
-                    self.set_editor_mode(ScatterChartAnnotator.ModeSeriesEdit)
-                elif self.edition_mode == ScatterChartAnnotator.ModePointAdd:
+                if self.edition_mode == ScatterChartAnnotator.ModePointAdd:
                     # Add the new point
                     self.tempo_scatter_values.add_point(rel_x, rel_y)
+                    # update canvas ....
+                    ps_points = self.scatter_points_to_canvas_points(self.tempo_scatter_values.points)
+                    self.canvas_display.update_point_set_element(self.tempo_canvas_name, ps_points, True)
                     # .. and stay on current state until cancel is pressed.
 
                 self.update_current_view()
@@ -700,6 +716,35 @@ class ScatterChartAnnotator(Screen):
         self.lbl_number_title.set_text("Series in Chart: {0:d}".format(n_series))
 
         self.fill_data_series_list(self.lbx_number_series_values)
+        self.create_canvas_point_sets()
+
+    def create_canvas_point_sets(self):
+        self.canvas_display.clear()
+
+        for idx, scatter_values in enumerate(self.data.scatter_values):
+            # line_color = self.canvas_display.colors[idx % len(self.canvas_display.colors)]
+            all_transformed_points = self.scatter_points_to_canvas_points(scatter_values.points)
+            self.canvas_display.add_point_set_element("scatter_" + str(idx), all_transformed_points)
+
+    def scatter_points_to_canvas_points(self, point_set):
+        x1, y1, x2, y2 = self.panel_info.axes.bounding_box
+
+        all_transformed_points = []
+        for p_idx in range(len(point_set)):
+            # transform current point from relative space to absolute pixel space (simple translation)
+            c_x, c_y = point_set[p_idx]
+            c_x += x1
+            c_y = y2 - c_y
+            current_point = (c_x, c_y)
+
+            all_transformed_points.append(current_point)
+
+        # now ... to numpy array ...
+        all_transformed_points = np.array(all_transformed_points, np.float64)
+        # apply current view scale ...
+        all_transformed_points *= self.view_scale
+
+        return all_transformed_points
 
     def fill_data_series_list(self, text_list):
         text_list.clear_options()
@@ -733,7 +778,7 @@ class ScatterChartAnnotator(Screen):
         elif self.edition_mode == ScatterChartAnnotator.ModePointAdd:
             self.lbl_confirm_message.set_text("Click on New Point")
         elif self.edition_mode == ScatterChartAnnotator.ModePointEdit:
-            self.lbl_confirm_message.set_text("Click on New Position")
+            self.lbl_confirm_message.set_text("Drag Points")
         elif self.edition_mode == ScatterChartAnnotator.ModeConfirmExit:
             self.lbl_confirm_message.set_text("Discard Changes to Scatter Data?")
 
@@ -759,8 +804,22 @@ class ScatterChartAnnotator(Screen):
         # ... list of points ...
         self.update_points_list()
 
+        # canvas
+        self.canvas_show_hide_scatters(option_idx)
+        self.canvas_display.locked = True
+
         self.set_editor_mode(ScatterChartAnnotator.ModeSeriesEdit)
         self.update_current_view(False)
+
+    def canvas_show_hide_scatters(self, show_index):
+        self.canvas_display.change_selected_element(None)
+        self.tempo_canvas_name = None
+        for element_name in self.canvas_display.elements:
+            scatter_idx = int(element_name.split("_")[1])
+            self.canvas_display.elements[element_name].visible = (show_index < 0 or show_index == scatter_idx)
+            if show_index == scatter_idx:
+                self.tempo_canvas_name = element_name
+                self.canvas_display.change_selected_element(element_name)
 
     def btn_data_return_click(self, button):
         self.set_editor_mode(ScatterChartAnnotator.ModeNavigate)
@@ -773,16 +832,17 @@ class ScatterChartAnnotator(Screen):
             self.lbx_scatter_points.add_option(str(idx), display_value)
 
     def btn_scatter_point_edit_click(self, button):
-        if self.lbx_scatter_points.selected_option_value is None:
-            print("Must select a data point from list")
-            return
-
-        self.tempo_point_index = int(self.lbx_scatter_points.selected_option_value)
+        # self.tempo_point_index = int(self.lbx_scatter_points.selected_option_value)
+        self.canvas_display.locked = False
         self.set_editor_mode(ScatterChartAnnotator.ModePointEdit)
 
     def delete_tempo_scatter_point(self, del_idx):
         if self.tempo_scatter_values.remove_point(del_idx):
             # update GUI
+            # ... canvas ...
+            ps_points = self.scatter_points_to_canvas_points(self.tempo_scatter_values.points)
+            self.canvas_display.update_point_set_element(self.tempo_canvas_name, ps_points, True)
+            # ... list and view
             self.update_points_list()
             self.update_current_view()
 
@@ -802,15 +862,24 @@ class ScatterChartAnnotator(Screen):
         self.data.scatter_values[self.tempo_scatter_index] = ScatterValues.Copy(self.tempo_scatter_values)
         self.data_changed = True
 
+        # all scatters must be displayed ... and nothing should be selected
+        self.canvas_show_hide_scatters(-1)
         self.set_editor_mode(ScatterChartAnnotator.ModeSeriesSelect)
         self.update_current_view()
 
     def btn_scatter_return_cancel_click(self, button):
+        # restore the scatter on the canvas to its previous  state
+        ps_points = self.scatter_points_to_canvas_points(self.data.scatter_values[self.tempo_scatter_index].points)
+        self.canvas_display.update_point_set_element(self.tempo_canvas_name, ps_points, True)
+        # all scatters must be displayed ... and nothing should be selected on the canvas
+        self.canvas_show_hide_scatters(-1)
+
         self.set_editor_mode(ScatterChartAnnotator.ModeSeriesSelect)
         self.update_current_view(False)
 
     def lbx_scatter_points_value_changed(self, new_value, old_value):
-        self.update_current_view(False)
+        pass
+        # self.update_current_view(False)
 
     def img_mouse_double_click(self, img, position, button):
         if self.edition_mode == ScatterChartAnnotator.ModeSeriesEdit:
@@ -824,12 +893,16 @@ class ScatterChartAnnotator(Screen):
                 # left click
                 if point_idx is not None and distance < ScatterChartAnnotator.DoubleClickMaxPointDistance:
                     # ... edit...
-                    self.tempo_point_index = point_idx
+                    self.canvas_display.locked = False
                     self.set_editor_mode(ScatterChartAnnotator.ModePointEdit)
                 else:
                     # ... add point ...
                     self.tempo_scatter_values.add_point(rel_x, rel_y)
                     # update GUI
+                    # ... canvas ....
+                    ps_points = self.scatter_points_to_canvas_points(self.tempo_scatter_values.points)
+                    self.canvas_display.update_point_set_element(self.tempo_canvas_name, ps_points, True)
+                    # ... list of points ...
                     self.update_points_list()
 
                 self.update_current_view(False)

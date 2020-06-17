@@ -102,6 +102,13 @@ Example:
 	# This will generate a testing dataset for Task 3  
 	python chart_json_export.py data/images data/annotations data/task3_json 3 0
 
+## Update (June 17, 2020)
+  - Major improvements to data annotations
+    - Tools for Bar Charts and Box Charts now use draggable tools to quickly adjust bar/box parameters
+	- Tool for Bar Charts now includes semi-automatic bar height adjustment which greatly simply annotations of 
+	  bar chats using solid color bars.
+	- Toos for Axes and Line Charts now use draggable tools to make adjusting points much easier/faster
+
 ## Update (June 05, 2020)
   - Major improvements to text annotation including:
     - Improved Text Box Behavior

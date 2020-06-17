@@ -61,6 +61,7 @@ class LineChartAnnotator(Screen):
         self.tempo_line_index = None
         self.tempo_point_index = None
         self.tempo_line_values = None
+        self.tempo_canvas_name = None
 
         self.view_mode = LineChartAnnotator.ViewModeRawData
         self.view_scale = 1.0
@@ -113,7 +114,6 @@ class LineChartAnnotator(Screen):
         self.btn_line_point_add = None
         self.btn_line_return_accept = None
         self.btn_line_return_cancel = None
-
 
         self.container_images = None
         self.canvas_display = None
@@ -382,33 +382,33 @@ class LineChartAnnotator(Screen):
         self.lbx_line_points.selected_value_change_callback = self.lbx_line_points_value_changed
         self.container_line_buttons.append(self.lbx_line_points)
 
-        self.btn_line_point_edit = ScreenButton("btn_line_point_edit", "Edit Point", 21, button_2_width)
-        self.btn_line_point_edit.set_colors(button_text_color, button_back_color)
-        self.btn_line_point_edit.position = (button_2_left, self.lbx_line_points.get_bottom() + 10)
-        self.btn_line_point_edit.click_callback = self.btn_line_point_edit_click
-        self.container_line_buttons.append(self.btn_line_point_edit)
-
-        self.btn_line_point_delete = ScreenButton("btn_line_point_delete", "Remove Point", 21, button_2_width)
-        self.btn_line_point_delete.set_colors(button_text_color, button_back_color)
-        self.btn_line_point_delete.position = (button_2_right, self.lbx_line_points.get_bottom() + 10)
-        self.btn_line_point_delete.click_callback = self.btn_line_point_delete_click
-        self.container_line_buttons.append(self.btn_line_point_delete)
-
-        self.btn_line_point_add = ScreenButton("btn_line_point_add", "Add Points", 21, button_width)
+        self.btn_line_point_add = ScreenButton("btn_line_point_add", "Add Points", 21, button_2_width)
         self.btn_line_point_add.set_colors(button_text_color, button_back_color)
-        self.btn_line_point_add.position = (button_left, self.btn_line_point_edit.get_bottom() + 10)
+        self.btn_line_point_add.position = (button_2_left, self.lbx_line_points.get_bottom() + 10)
         self.btn_line_point_add.click_callback = self.btn_line_point_add_click
         self.container_line_buttons.append(self.btn_line_point_add)
 
+        self.btn_line_point_edit = ScreenButton("btn_line_point_edit", "Edit Points", 21, button_2_width)
+        self.btn_line_point_edit.set_colors(button_text_color, button_back_color)
+        self.btn_line_point_edit.position = (button_2_right, self.lbx_line_points.get_bottom() + 10)
+        self.btn_line_point_edit.click_callback = self.btn_line_point_edit_click
+        self.container_line_buttons.append(self.btn_line_point_edit)
+
+        self.btn_line_point_delete = ScreenButton("btn_line_point_delete", "Remove Point", 21, button_width)
+        self.btn_line_point_delete.set_colors(button_text_color, button_back_color)
+        self.btn_line_point_delete.position = (button_left, self.btn_line_point_edit.get_bottom() + 10)
+        self.btn_line_point_delete.click_callback = self.btn_line_point_delete_click
+        self.container_line_buttons.append(self.btn_line_point_delete)
+
         self.btn_line_return_accept = ScreenButton("btn_line_return_accept", "Accept", 21, button_2_width)
         self.btn_line_return_accept.set_colors(button_text_color, button_back_color)
-        self.btn_line_return_accept.position = (button_2_left, self.btn_line_point_add.get_bottom() + 20)
+        self.btn_line_return_accept.position = (button_2_left, self.btn_line_point_delete.get_bottom() + 20)
         self.btn_line_return_accept.click_callback = self.btn_line_return_accept_click
         self.container_line_buttons.append(self.btn_line_return_accept)
 
         self.btn_line_return_cancel = ScreenButton("btn_line_return_cancel", "Cancel", 21, button_2_width)
         self.btn_line_return_cancel.set_colors(button_text_color, button_back_color)
-        self.btn_line_return_cancel.position = (button_2_right, self.btn_line_point_add.get_bottom() + 20)
+        self.btn_line_return_cancel.position = (button_2_right, self.btn_line_point_delete.get_bottom() + 20)
         self.btn_line_return_cancel.click_callback = self.btn_line_return_cancel_click
         self.container_line_buttons.append(self.btn_line_return_cancel)
 
@@ -437,6 +437,7 @@ class LineChartAnnotator(Screen):
         self.canvas_display = ScreenCanvas("canvas_display", 100, 100)
         self.canvas_display.position = (0, 0)
         self.canvas_display.locked = True
+        self.canvas_display.object_edited_callback = self.canvas_display_object_edited
         self.container_images.append(self.canvas_display)
 
         self.prepare_number_controls()
@@ -534,18 +535,20 @@ class LineChartAnnotator(Screen):
             # cv2.line(modified_image, (x2, y1), (x2, y2), (0, 128, 0), thickness=1)
             # cv2.line(modified_image, (x1, y1), (x2, y1), (0, 0, 128), thickness=1)
 
+            """
+            TODO: remove this legacy code once that Canvas-basd line edit is well tested...
             # check which lines will be drawn ...
             if self.edition_mode in [LineChartAnnotator.ModeLineEdit,
                                      LineChartAnnotator.ModePointAdd,
                                      LineChartAnnotator.ModePointEdit]:
                 # Only draw the line being edited ... based on its temporary changes ...
-                lines_to_drawing = [self.tempo_line_values]
+                lines_to_draw = [self.tempo_line_values]
             else:
                 # draw everything ...
-                lines_to_drawing = self.data.lines
+                lines_to_draw = self.data.lines
 
             # for each line to drawn ...
-            for idx, line_values in enumerate(lines_to_drawing):
+            for idx, line_values in enumerate(lines_to_draw):
                 line_color = self.canvas_display.colors[idx % len(self.canvas_display.colors)]
 
                 all_transformed_points = []
@@ -571,7 +574,7 @@ class LineChartAnnotator(Screen):
                 # Draw the line ...
                 all_transformed_points = np.array(all_transformed_points).astype(np.int32)
                 modified_image = cv2.polylines(modified_image, [all_transformed_points], False, line_color)
-
+            """
         else:
             self.canvas_display.visible = False
 
@@ -587,13 +590,27 @@ class LineChartAnnotator(Screen):
         if resized:
             self.container_images.recalculate_size()
 
-
     def btn_confirm_cancel_click(self, button):
         if self.edition_mode in [LineChartAnnotator.ModeConfirmExit]:
             # return to navigation
             self.set_editor_mode(LineChartAnnotator.ModeNavigate)
 
-        elif self.edition_mode in [LineChartAnnotator.ModePointAdd, LineChartAnnotator.ModePointEdit]:
+        elif self.edition_mode in [LineChartAnnotator.ModePointAdd]:
+            # return to line edition mode ...
+            self.update_points_list()
+            self.set_editor_mode(LineChartAnnotator.ModeLineEdit)
+        elif self.edition_mode in [LineChartAnnotator.ModePointEdit]:
+            # copy data from Canvas to the structure ....
+            canvas_points = self.canvas_display.elements[self.tempo_canvas_name].points
+            for point_idx, (px, py) in enumerate(canvas_points):
+                # like clicks, canvas uses visual position,
+                # convert coordinates from the canvas to image coordinate
+                # using the same function used the mouse clicks
+                rel_x, rel_y = self.from_pos_to_rel_click((px, py))
+                # set new position for this point ...
+                self.tempo_line_values.set_point(point_idx, rel_x, rel_y)
+            # lock the canvas ...
+            self.canvas_display.locked = True
             # return to line edition mode ...
             self.update_points_list()
             self.set_editor_mode(LineChartAnnotator.ModeLineEdit)
@@ -640,6 +657,7 @@ class LineChartAnnotator(Screen):
         if data_series_changed:
             self.fill_data_series_list(self.lbx_number_series_values)
 
+        self.create_canvas_lines()
         self.update_current_view()
 
     def btn_number_series_add_click(self, button):
@@ -692,8 +710,8 @@ class LineChartAnnotator(Screen):
         click_y /= self.view_scale
 
         x1, y1, x2, y2 = self.panel_info.axes.bounding_box
-        x1 = int(x1)
-        y2 = int(y2)
+        # x1 = int(x1)
+        # y2 = int(y2)
 
         rel_x = click_x - x1
         rel_y = y2 - click_y
@@ -706,15 +724,13 @@ class LineChartAnnotator(Screen):
                 # click pos ...
                 rel_x, rel_y = self.from_pos_to_rel_click(pos)
 
-                if self.edition_mode == LineChartAnnotator.ModePointEdit:
-                    # set new position for point being edited ...
-                    self.tempo_line_values.set_point(self.tempo_point_index, rel_x, rel_y)
-                    # go back to previous mode
-                    self.update_points_list()
-                    self.set_editor_mode(LineChartAnnotator.ModeLineEdit)
-                elif self.edition_mode == LineChartAnnotator.ModePointAdd:
+                if self.edition_mode == LineChartAnnotator.ModePointAdd:
                     # Add the new point
                     self.tempo_line_values.add_point(rel_x, rel_y, LineValues.InsertByXValue)
+                    # update canvas ....
+                    pl_points = self.line_points_to_canvas_points(self.tempo_line_values.points)
+                    self.canvas_display.update_polyline_element(self.tempo_canvas_name, pl_points, True)
+
                     # .. and stay on current state until cancel is pressed.
 
                 self.update_current_view()
@@ -724,6 +740,7 @@ class LineChartAnnotator(Screen):
         self.lbl_number_title.set_text("Lines in Chart: {0:d}".format(n_lines))
 
         self.fill_data_series_list(self.lbx_number_series_values)
+        self.create_canvas_lines()
 
     def fill_data_series_list(self, text_list):
         text_list.clear_options()
@@ -734,6 +751,34 @@ class LineChartAnnotator(Screen):
                 display_value = "{0:d}: {1:s}".format(idx + 1, current_text.value)
 
             text_list.add_option(str(idx), display_value)
+
+    def line_points_to_canvas_points(self, line_points):
+        x1, y1, x2, y2 = self.panel_info.axes.bounding_box
+
+        all_transformed_points = []
+        for p_idx in range(len(line_points)):
+            # transform current point from relative space to absolute pixel space (simple translation)
+            c_x, c_y = line_points[p_idx]
+            c_x += x1
+            c_y = y2 - c_y
+            current_point = (c_x, c_y)
+
+            all_transformed_points.append(current_point)
+
+        # now ... to numpy array ...
+        all_transformed_points = np.array(all_transformed_points, np.float64)
+        # apply current view scale ...
+        all_transformed_points *= self.view_scale
+
+        return all_transformed_points
+
+    def create_canvas_lines(self):
+        self.canvas_display.clear()
+
+        for idx, line_values in enumerate(self.data.lines):
+            # line_color = self.canvas_display.colors[idx % len(self.canvas_display.colors)]
+            all_transformed_points = self.line_points_to_canvas_points(line_values.points)
+            self.canvas_display.add_polyline_element("line_" + str(idx), all_transformed_points)
 
     def set_editor_mode(self, new_mode):
         self.edition_mode = new_mode
@@ -757,13 +802,23 @@ class LineChartAnnotator(Screen):
         elif self.edition_mode == LineChartAnnotator.ModePointAdd:
             self.lbl_confirm_message.set_text("Click on New Point")
         elif self.edition_mode == LineChartAnnotator.ModePointEdit:
-            self.lbl_confirm_message.set_text("Click on New Position")
+            self.lbl_confirm_message.set_text("Drag to New Position")
         elif self.edition_mode == LineChartAnnotator.ModeConfirmExit:
             self.lbl_confirm_message.set_text("Discard Changes to Line Data?")
 
         # Do not show accept at these steps (they can be implicitly accepted, but need explicit cancel button only)
         self.btn_confirm_accept.visible = self.edition_mode not in [LineChartAnnotator.ModePointAdd,
                                                                     LineChartAnnotator.ModePointEdit]
+
+    def canvas_show_hide_lines(self, show_index):
+        self.canvas_display.change_selected_element(None)
+        self.tempo_canvas_name = None
+        for element_name in self.canvas_display.elements:
+            line_idx = int(element_name.split("_")[1])
+            self.canvas_display.elements[element_name].visible = (show_index < 0 or show_index == line_idx)
+            if show_index == line_idx:
+                self.tempo_canvas_name = element_name
+                self.canvas_display.change_selected_element(element_name)
 
     def btn_data_series_edit_click(self, button):
         if self.lbx_data_series_values.selected_option_value is None:
@@ -783,6 +838,10 @@ class LineChartAnnotator(Screen):
         # ... list of points ...
         self.update_points_list()
 
+        # canvas
+        self.canvas_show_hide_lines(option_idx)
+        self.canvas_display.locked = True
+
         self.set_editor_mode(LineChartAnnotator.ModeLineEdit)
         self.update_current_view(False)
 
@@ -793,20 +852,19 @@ class LineChartAnnotator(Screen):
         self.lbx_line_points.clear_options()
         for idx, (p_x, p_y) in enumerate(self.tempo_line_values.points):
             display_value = "{0:d}: ({1:.1f}, {2:.1f})".format(idx + 1, p_x, p_y)
-
             self.lbx_line_points.add_option(str(idx), display_value)
 
     def btn_line_point_edit_click(self, button):
-        if self.lbx_line_points.selected_option_value is None:
-            print("Must select a data point from list")
-            return
-
-        self.tempo_point_index = int(self.lbx_line_points.selected_option_value)
+        # self.tempo_point_index = int(self.lbx_line_points.selected_option_value)
+        self.canvas_display.locked = False
         self.set_editor_mode(LineChartAnnotator.ModePointEdit)
 
     def delete_tempo_line_point(self, del_idx):
         if self.tempo_line_values.remove_point(del_idx):
             # update GUI
+            pl_points = self.line_points_to_canvas_points(self.tempo_line_values.points)
+            self.canvas_display.update_polyline_element(self.tempo_canvas_name, pl_points, True)
+
             self.update_points_list()
             self.update_current_view()
 
@@ -825,16 +883,23 @@ class LineChartAnnotator(Screen):
     def btn_line_return_accept_click(self, button):
         self.data.lines[self.tempo_line_index] = LineValues.Copy(self.tempo_line_values)
         self.data_changed = True
-
+        # all lines must be displayed ... and nothing should be selected
+        self.canvas_show_hide_lines(-1)
         self.set_editor_mode(LineChartAnnotator.ModeLineSelect)
         self.update_current_view()
 
     def btn_line_return_cancel_click(self, button):
+        # restore the line on the canvas to its previous  state
+        pl_points = self.line_points_to_canvas_points(self.data.lines[self.tempo_line_index].points)
+        self.canvas_display.update_polyline_element(self.tempo_canvas_name, pl_points, True)
+        # all lines must be displayed and nothing should be selected on the canvas
+        self.canvas_show_hide_lines(-1)
+
         self.set_editor_mode(LineChartAnnotator.ModeLineSelect)
         self.update_current_view(False)
 
     def lbx_line_points_value_changed(self, new_value, old_value):
-        self.update_current_view(False)
+        pass
 
     def img_mouse_double_click(self, img, position, button):
         if self.edition_mode == LineChartAnnotator.ModeLineEdit:
@@ -848,12 +913,16 @@ class LineChartAnnotator(Screen):
                 # left click
                 if point_idx is not None and distance < LineChartAnnotator.DoubleClickMaxPointDistance:
                     # ... edit...
-                    self.tempo_point_index = point_idx
+                    self.canvas_display.locked = False
                     self.set_editor_mode(LineChartAnnotator.ModePointEdit)
                 else:
                     # ... add point ...
                     self.tempo_line_values.add_point(rel_x, rel_y, LineValues.InsertByXValue)
                     # update GUI
+                    # ... canvas ....
+                    pl_points = self.line_points_to_canvas_points(self.tempo_line_values.points)
+                    self.canvas_display.update_polyline_element(self.tempo_canvas_name, pl_points, True)
+                    # ... list of points ....
                     self.update_points_list()
 
                 self.update_current_view(False)
@@ -862,3 +931,5 @@ class LineChartAnnotator(Screen):
                 if distance < LineChartAnnotator.DoubleClickMaxPointDistance:
                     self.delete_tempo_line_point(point_idx)
 
+    def canvas_display_object_edited(self, canvas, element_name):
+        pass

@@ -1543,7 +1543,19 @@ class ChartAxesAnnotator(Screen):
         if button == 1:
             if self.edition_mode == ChartAxesAnnotator.ModeBBoxSelect:
                 rect_x, rect_y = pos
-                rect_w, rect_h = 30, 30
+
+                # default size .... based on estimations from text ....
+                tick_labels = self.panel_info.get_all_text(TextInfo.TypeTickLabel)
+                if len(tick_labels) > 0:
+                    all_tick_centers = np.array([label.get_center() for label in tick_labels])
+                    min_x, max_x = all_tick_centers[:, 0].min(), all_tick_centers[:, 0].max()
+                    min_y, max_y = all_tick_centers[:, 1].min(), all_tick_centers[:, 1].max()
+
+                    rect_w = (max_x - min_x) * 0.90 * self.view_scale
+                    rect_h = (max_y - min_y) * 0.90 * self.view_scale
+                else:
+                    # default arbitrary size ...
+                    rect_w, rect_h = 30, 30
 
                 self.canvas_select.elements["selection_rectangle"].update(rect_x, rect_y, rect_w, rect_h)
 
