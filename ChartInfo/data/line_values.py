@@ -1,4 +1,6 @@
 
+import numpy as np
+
 from shapely.geometry import LineString, Point
 
 class LineValues:
@@ -6,6 +8,8 @@ class LineValues:
     InsertByXValue = 0
     InsertByYValue = 1
     InsertByCloseLine = 2
+
+    PointDistanceSame = 0.95
 
     # TODO: consider these maybe?
     LinearInterpolation = 0
@@ -65,7 +69,20 @@ class LineValues:
 
             self.points.insert(insert_at, new_point)
 
+    def contains_point(self, x, y):
+        if len(self.points) == 0:
+            return False
+
+        raw_diff = np.array(self.points) - np.array([[x, y]])
+        all_distances = np.linalg.norm(raw_diff, axis=1)
+
+        return all_distances.min() <= LineValues.PointDistanceSame
+
     def add_point(self, x, y, mode):
+        if self.contains_point(x, y):
+            # will not add repeated point
+            return False
+
         if mode == LineValues.InsertByCloseLine:
             self.add_point_by_close_line(x, y)
         elif mode == LineValues.InsertByXValue:
@@ -74,6 +91,8 @@ class LineValues:
             self.add_point_by_axis_value(x, y, 1)
         else:
             raise Exception("Invalid Point Insertion Mode")
+
+        return True
 
     def remove_point(self, idx):
         if 0 <= idx <= len(self.points):

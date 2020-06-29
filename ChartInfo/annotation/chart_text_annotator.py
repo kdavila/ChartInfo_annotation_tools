@@ -22,9 +22,11 @@ from AM_CommonTools.interface.controls.screen_canvas import ScreenCanvas
 from AM_CommonTools.interface.controls.screen_textlist import ScreenTextlist
 from AM_CommonTools.interface.controls.screen_textbox import ScreenTextbox
 
+from ChartInfo.annotation.base_image_annotator import BaseImageAnnotator
+
 from ChartInfo.data.text_info import TextInfo
 
-class ChartTextAnnotator(Screen):
+class ChartTextAnnotator(BaseImageAnnotator):
     ModeNavigate = 0
     ModeAddingTextSelect = 1
     ModeAddingTextEdit = 2
@@ -32,11 +34,6 @@ class ChartTextAnnotator(Screen):
     ModeConfirmDeleteText = 4
     ModeConfirmExit = 5
     ModeConfirmOverwrite = 6
-
-    ViewModeRawData = 0
-    ViewModeGrayData = 1
-    ViewModeRawNoData = 2
-    ViewModeGrayNoData = 3
 
     RotationAuto = 0
     Rotation0 = 1
@@ -50,15 +47,15 @@ class ChartTextAnnotator(Screen):
     TightQuadMargin = 4
 
     def __init__(self, size, panel_image, panel_info, parent_screen, admin_mode):
-        Screen.__init__(self, "Chart Text Ground Truth Annotation Interface", size)
+        BaseImageAnnotator.__init__(self, "Chart Text Ground Truth Annotation Interface", size)
 
-        self.panel_image = panel_image
-        self.panel_gray = np.zeros(self.panel_image.shape, self.panel_image.dtype)
-        self.panel_gray[:, :, 0] = cv2.cvtColor(self.panel_image, cv2.COLOR_RGB2GRAY)
-        self.panel_gray[:, :, 1] = self.panel_gray[:, :, 0].copy()
-        self.panel_gray[:, :, 2] = self.panel_gray[:, :, 0].copy()
+        self.base_rgb_image = panel_image
+        self.base_gray_image = np.zeros(self.base_rgb_image.shape, self.base_rgb_image.dtype)
+        self.base_gray_image[:, :, 0] = cv2.cvtColor(self.base_rgb_image, cv2.COLOR_RGB2GRAY)
+        self.base_gray_image[:, :, 1] = self.base_gray_image[:, :, 0].copy()
+        self.base_gray_image[:, :, 2] = self.base_gray_image[:, :, 0].copy()
 
-        otsu_t, binarized = cv2.threshold(self.panel_gray[:, :, 0], 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        otsu_t, binarized = cv2.threshold(self.base_gray_image[:, :, 0], 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         self.panel_binary = 255 - binarized
 
         self.panel_info = panel_info
@@ -98,24 +95,11 @@ class ChartTextAnnotator(Screen):
         self.elements.back_color = self.general_background
 
         self.edition_mode = None
-        self.view_mode = ChartTextAnnotator.ViewModeRawData
-        self.view_scale = 1.0
 
         self.data_changed = False
         self.tempo_edit_text = None
 
         self.label_title = None
-
-        self.container_view_buttons = None
-        self.lbl_zoom = None
-        self.btn_zoom_reduce = None
-        self.btn_zoom_increase = None
-        self.btn_zoom_zero = None
-
-        self.btn_view_raw_data = None
-        self.btn_view_gray_data = None
-        self.btn_view_raw_clear = None
-        self.btn_view_gray_clear = None
 
         self.container_confirm_buttons = None
         self.lbl_confirm_message = None
@@ -161,11 +145,6 @@ class ChartTextAnnotator(Screen):
         self.btn_edit_cancel = None
         self.btn_edit_accept = None
 
-        self.container_images = None
-        self.canvas_select = None
-        self.canvas_display = None
-        self.img_main = None
-
         self.create_controllers()
 
         # get the view ...
@@ -203,63 +182,8 @@ class ChartTextAnnotator(Screen):
 
         # ===========================
         # View Options Panel
-
-        # View panel with view control buttons
-        self.container_view_buttons = ScreenContainer("container_view_buttons", (container_width, 160),
-                                                      back_color=self.general_background)
-        self.container_view_buttons.position = (self.width - self.container_view_buttons.width - 10, container_top)
-        self.elements.append(self.container_view_buttons)
-
-        # zoom ....
-        self.lbl_zoom = ScreenLabel("lbl_zoom", "Zoom: 100%", 21, 290, 1)
-        self.lbl_zoom.position = (5, 5)
-        self.lbl_zoom.set_background(self.general_background)
-        self.lbl_zoom.set_color(self.text_color)
-        self.container_view_buttons.append(self.lbl_zoom)
-
-        self.btn_zoom_reduce = ScreenButton("btn_zoom_reduce", "[ - ]", 21, 90)
-        self.btn_zoom_reduce.set_colors(button_text_color, button_back_color)
-        self.btn_zoom_reduce.position = (10, self.lbl_zoom.get_bottom() + 10)
-        self.btn_zoom_reduce.click_callback = self.btn_zoom_reduce_click
-        self.container_view_buttons.append(self.btn_zoom_reduce)
-
-        self.btn_zoom_increase = ScreenButton("btn_zoom_increase", "[ + ]", 21, 90)
-        self.btn_zoom_increase.set_colors(button_text_color, button_back_color)
-        self.btn_zoom_increase.position = (self.container_view_buttons.width - self.btn_zoom_increase.width - 10,
-                                           self.lbl_zoom.get_bottom() + 10)
-        self.btn_zoom_increase.click_callback = self.btn_zoom_increase_click
-        self.container_view_buttons.append(self.btn_zoom_increase)
-
-        self.btn_zoom_zero = ScreenButton("btn_zoom_zero", "100%", 21, 90)
-        self.btn_zoom_zero.set_colors(button_text_color, button_back_color)
-        self.btn_zoom_zero.position = ((self.container_view_buttons.width - self.btn_zoom_zero.width) / 2,
-                                       self.lbl_zoom.get_bottom() + 10)
-        self.btn_zoom_zero.click_callback = self.btn_zoom_zero_click
-        self.container_view_buttons.append(self.btn_zoom_zero)
-
-        self.btn_view_raw_data = ScreenButton("btn_view_raw_data", "RGB Data", 21, button_2_width)
-        self.btn_view_raw_data.set_colors(button_text_color, button_back_color)
-        self.btn_view_raw_data.position = (button_2_left, self.btn_zoom_zero.get_bottom() + 10)
-        self.btn_view_raw_data.click_callback = self.btn_view_raw_data_click
-        self.container_view_buttons.append(self.btn_view_raw_data)
-
-        self.btn_view_gray_data = ScreenButton("btn_view_gray", "Gray Data", 21, button_2_width)
-        self.btn_view_gray_data.set_colors(button_text_color, button_back_color)
-        self.btn_view_gray_data.position = (button_2_right, self.btn_zoom_zero.get_bottom() + 10)
-        self.btn_view_gray_data.click_callback = self.btn_view_gray_data_click
-        self.container_view_buttons.append(self.btn_view_gray_data)
-
-        self.btn_view_raw_clear = ScreenButton("btn_view_raw_clear", "RGB Clear", 21, button_2_width)
-        self.btn_view_raw_clear.set_colors(button_text_color, button_back_color)
-        self.btn_view_raw_clear.position = (button_2_left, self.btn_view_raw_data.get_bottom() + 10)
-        self.btn_view_raw_clear.click_callback = self.btn_view_raw_clear_click
-        self.container_view_buttons.append(self.btn_view_raw_clear)
-
-        self.btn_view_gray_clear = ScreenButton("btn_view_gray_clear", "Gray Clear", 21, button_2_width)
-        self.btn_view_gray_clear.set_colors(button_text_color, button_back_color)
-        self.btn_view_gray_clear.position = (button_2_right, self.btn_view_raw_data.get_bottom() + 10)
-        self.btn_view_gray_clear.click_callback = self.btn_view_gray_clear_click
-        self.container_view_buttons.append(self.btn_view_gray_clear)
+        self.create_image_annotator_controls(container_top, container_width, self.general_background, self.text_color,
+                                             button_text_color, button_back_color)
 
         # ===========================
         # confirmation panel
@@ -450,20 +374,6 @@ class ChartTextAnnotator(Screen):
         self.lbl_edit_text.set_color(self.text_color)
         self.container_edit_options.append(self.lbl_edit_text)
 
-        """
-        self.btn_edit_OCR_0 = ScreenButton("btn_edit_OCR_0", "OCR R+0", 21, button_2_width)
-        self.btn_edit_OCR_0.set_colors(button_text_color, button_back_color)
-        self.btn_edit_OCR_0.position = (button_2_left, self.lbl_edit_text.get_bottom() + 10)
-        self.btn_edit_OCR_0.click_callback = self.btn_edit_OCR_0_click
-        self.container_edit_options.append(self.btn_edit_OCR_0)
-
-        self.btn_edit_OCR_any = ScreenButton("btn_edit_OCR_any", "OCR R+ANY", 21, button_2_width)
-        self.btn_edit_OCR_any.set_colors(button_text_color, button_back_color)
-        self.btn_edit_OCR_any.position = (button_2_right, self.lbl_edit_text.get_bottom() + 10)
-        self.btn_edit_OCR_any.click_callback = self.btn_edit_OCR_any_click
-        self.container_edit_options.append(self.btn_edit_OCR_any)
-        """
-
         self.btn_edit_OCR_0 = ScreenButton("btn_edit_OCR_0", "R+0", 19, button_4_width)
         self.btn_edit_OCR_0.set_colors(button_text_color, button_back_color)
         self.btn_edit_OCR_0.position = (button_4_1, self.lbl_edit_text.get_bottom() + 10)
@@ -476,27 +386,6 @@ class ChartTextAnnotator(Screen):
         self.btn_edit_OCR_any.click_callback = self.btn_edit_OCR_any_click
         self.container_edit_options.append(self.btn_edit_OCR_any)
 
-        """
-        self.btn_edit_OCR_180 = ScreenButton("btn_edit_OCR_180", "OCR R+180", 21, button_2_width)
-        self.btn_edit_OCR_180.set_colors(button_text_color, button_back_color)
-        self.btn_edit_OCR_180.position = (button_2_right, self.lbl_edit_text.get_bottom() + 10)
-        self.btn_edit_OCR_180.click_callback = self.btn_edit_OCR_180_click
-        self.container_edit_options.append(self.btn_edit_OCR_180)
-        """
-
-        """
-        self.btn_edit_OCR_270 = ScreenButton("btn_edit_OCR_270", "OCR R-90", 21, button_2_width)
-        self.btn_edit_OCR_270.set_colors(button_text_color, button_back_color)
-        self.btn_edit_OCR_270.position = (button_2_left, self.btn_edit_OCR_0.get_bottom() + 10)
-        self.btn_edit_OCR_270.click_callback = self.btn_edit_OCR_270_click
-        self.container_edit_options.append(self.btn_edit_OCR_270)
-
-        self.btn_edit_OCR_90 = ScreenButton("btn_edit_OCR_90", "OCR R+90", 21, button_2_width)
-        self.btn_edit_OCR_90.set_colors(button_text_color, button_back_color)
-        self.btn_edit_OCR_90.position = (button_2_right, self.btn_edit_OCR_0.get_bottom() + 10)
-        self.btn_edit_OCR_90.click_callback = self.btn_edit_OCR_90_click
-        self.container_edit_options.append(self.btn_edit_OCR_90)    
-        """
         self.btn_edit_OCR_270 = ScreenButton("btn_edit_OCR_270", "R-90", 19, button_4_width)
         self.btn_edit_OCR_270.set_colors(button_text_color, button_back_color)
         self.btn_edit_OCR_270.position = (button_4_3, self.lbl_edit_text.get_bottom() + 10)
@@ -508,14 +397,6 @@ class ChartTextAnnotator(Screen):
         self.btn_edit_OCR_90.position = (button_4_4, self.lbl_edit_text.get_bottom() + 10)
         self.btn_edit_OCR_90.click_callback = self.btn_edit_OCR_90_click
         self.container_edit_options.append(self.btn_edit_OCR_90)
-
-        """
-        self.txt_edit_text = ScreenTextbox("txt_edit_text", "", 24, container_width - 20,
-                                           text_color=(255, 255, 255), back_color=(0, 0, 0))
-        self.txt_edit_text.position = (5, self.btn_edit_OCR_270.get_bottom() + 10)
-        self.txt_edit_text.capture_EOL = True # allow multi-line elements
-        self.container_edit_options.append(self.txt_edit_text)
-        """
 
         self.btn_edit_clear_text = ScreenButton("btn_edit_clear_text", "Clear", 19, button_4_width)
         self.btn_edit_clear_text.set_colors(button_text_color, button_back_color)
@@ -562,38 +443,6 @@ class ChartTextAnnotator(Screen):
         self.container_edit_options.visible = False
 
         # ===========================
-        # Image
-
-        image_width = self.width - self.container_view_buttons.width - 30
-        image_height = self.height - container_top - self.label_title.height - 20
-        self.container_images = ScreenContainer("container_images", (image_width, image_height), back_color=(0, 0, 0))
-        self.container_images.position = (10, self.label_title.get_bottom())
-        self.elements.append(self.container_images)
-
-        # ... image objects ...
-        tempo_blank = np.zeros((50, 50, 3), np.uint8)
-        tempo_blank[:, :, :] = 255
-        self.img_main = ScreenImage("img_main", tempo_blank, 0, 0, True, cv2.INTER_NEAREST)
-        self.img_main.position = (0, 0)
-        self.img_main.double_click_callback = self.img_mouse_double_click
-        self.img_main.mouse_button_down_callback = self.img_mouse_down
-        self.container_images.append(self.img_main)
-
-        self.canvas_select = ScreenCanvas("canvas_select", 100, 100)
-        self.canvas_select.position = (0, 0)
-        self.canvas_select.locked = True
-        # self.canvas_select.object_edited_callback = self.canvas_object_edited
-        # self.canvas_select.object_selected_callback = self.canvas_selection_changed
-        self.container_images.append(self.canvas_select)
-
-        base_points = np.array([[10, 10],[20, 10], [20, 20], [10, 20]], dtype=np.float64)
-        self.canvas_select.add_polygon_element("selection_polygon", base_points)
-        self.canvas_select.elements["selection_polygon"].visible = False
-
-        self.canvas_display = ScreenCanvas("canvas_display", 100, 100)
-        self.canvas_display.position = (0, 0)
-        self.canvas_display.locked = True
-        self.container_images.append(self.canvas_display)
 
         self.add_text_regions()
 
@@ -621,103 +470,10 @@ class ChartTextAnnotator(Screen):
             self.canvas_display.add_polygon_element(str(text.id), text.position_polygon.copy(),
                                                     self.canvas_colors[text.type], self.canvas_sel_colors[text.type])
 
-
-    def btn_zoom_reduce_click(self, button):
-        self.update_view_scale(self.view_scale - 0.25)
-
-    def btn_zoom_increase_click(self, button):
-        self.update_view_scale(self.view_scale + 0.25)
-
-    def btn_zoom_zero_click(self, button):
-        self.update_view_scale(1.0)
-
-    def btn_view_raw_data_click(self, button):
-        self.view_mode = ChartTextAnnotator.ViewModeRawData
-        self.update_current_view()
-
-    def btn_view_gray_data_click(self, button):
-        self.view_mode = ChartTextAnnotator.ViewModeGrayData
-        self.update_current_view()
-
-    def btn_view_raw_clear_click(self, button):
-        self.view_mode = ChartTextAnnotator.ViewModeRawNoData
-        self.update_current_view()
-
-    def btn_view_gray_clear_click(self, button):
-        self.view_mode = ChartTextAnnotator.ViewModeGrayNoData
-        self.update_current_view()
-
-    def update_current_view(self, resized=False):
-        if self.view_mode in [ChartTextAnnotator.ViewModeGrayData, ChartTextAnnotator.ViewModeGrayNoData]:
-            # gray scale mode
-            base_image = self.panel_gray
-        else:
-            base_image = self.panel_image
-
-        h, w, c = base_image.shape
-
-        modified_image = base_image.copy()
-
-        if self.view_mode in [ChartTextAnnotator.ViewModeRawData, ChartTextAnnotator.ViewModeGrayData]:
-            # TODO: show here any relevant annotations on the modified image ...
-            # (for example, draw the polygons)
-            self.canvas_display.visible = True
-        else:
-            self.canvas_display.visible = False
-
-        # finally, resize ...
-        modified_image = cv2.resize(modified_image, (int(w * self.view_scale), int(h * self.view_scale)),
-                                    interpolation=cv2.INTER_NEAREST)
-
-        # update canvas size ....
-        self.canvas_select.height, self.canvas_select.width, _ = modified_image.shape
-        self.canvas_display.height, self.canvas_display.width, _ = modified_image.shape
-
-        # replace/update image
-        self.img_main.set_image(modified_image, 0, 0, True, cv2.INTER_NEAREST)
-        if resized:
-            self.container_images.recalculate_size()
-
-    def update_view_scale(self, new_scale):
-        prev_scale = self.view_scale
-
-        if 0.25 <= new_scale <= 4.0:
-            self.view_scale = new_scale
-        else:
-            return
-
-        # keep previous offsets ...
-        scroll_offset_y = self.container_images.v_scroll.value if self.container_images.v_scroll.active else 0
-        scroll_offset_x = self.container_images.h_scroll.value if self.container_images.h_scroll.active else 0
-
-        prev_center_y = scroll_offset_y + self.container_images.height / 2
-        prev_center_x = scroll_offset_x + self.container_images.width / 2
-
-        # compute new scroll bar offsets
-        scale_factor = (new_scale / prev_scale)
-        new_off_y = prev_center_y * scale_factor - self.container_images.height / 2
-        new_off_x = prev_center_x * scale_factor - self.container_images.width / 2
-
-        # update view ....
-        self.update_current_view(True)
-
-        # set offsets
-        if self.container_images.v_scroll.active and 0 <= new_off_y <= self.container_images.v_scroll.max:
-            self.container_images.v_scroll.value = new_off_y
-        if self.container_images.h_scroll.active and 0 <= new_off_x <= self.container_images.h_scroll.max:
-            self.container_images.h_scroll.value = new_off_x
-
-        # re-scale objects from both canvas
-        # ... selection ...
-        selection_polygon = self.canvas_select.elements["selection_polygon"]
-        selection_polygon.points *= scale_factor
-        # ... display ...
-        for polygon_name in self.canvas_display.elements:
-            display_polygon = self.canvas_display.elements[polygon_name]
-            display_polygon.points *= scale_factor
-
-        # update scale text ...
-        self.lbl_zoom.set_text("Zoom: " + str(int(round(self.view_scale * 100,0))) + "%")
+    def custom_view_update(self, modified_image):
+        # TODO: show here any relevant annotations on the modified image ...
+        # (for example, draw the polygons)
+        pass
 
     def set_editor_mode(self, new_mode):
         self.edition_mode = new_mode
@@ -850,7 +606,7 @@ class ChartTextAnnotator(Screen):
 
         return points
 
-    def img_mouse_double_click(self, element, pos, button):
+    def img_main_mouse_double_click(self, element, pos, button):
         if button == 1:
             # double left click ...
             if self.edition_mode == ChartTextAnnotator.ModeNavigate:
@@ -935,8 +691,6 @@ class ChartTextAnnotator(Screen):
             # Nothing changed just return
             self.return_screen = self.parent_screen
 
-
-
     def btn_return_cancel_click(self, button):
         if self.data_changed:
             # confirm if return ...
@@ -1010,7 +764,7 @@ class ChartTextAnnotator(Screen):
         # return ....
         self.set_editor_mode(ChartTextAnnotator.ModeNavigate)
 
-    def img_mouse_down(self, img_object, pos, button):
+    def img_main_mouse_button_down(self, img_object, pos, button):
         if button == 1:
             if self.edition_mode == ChartTextAnnotator.ModeAddingTextSelect:
                 click_x, click_y = pos
@@ -1021,7 +775,6 @@ class ChartTextAnnotator(Screen):
 
     def lbx_text_list_option_changed(self, new_value, old_value):
         self.canvas_display.change_selected_element(new_value)
-
 
     def btn_edit_OCR_0_click(self, button):
         self.apply_OCR(ChartTextAnnotator.Rotation0)
@@ -1131,9 +884,9 @@ class ChartTextAnnotator(Screen):
 
         if rotation == ChartTextAnnotator.RotationAuto:
             text_polygon = self.order_points(text_polygon)
-            text_img = self.crop_rotated_rectangle(self.panel_image, text_polygon)
+            text_img = self.crop_rotated_rectangle(self.base_rgb_image, text_polygon)
         else:
-            text_img = self.crop_axis_aligned_rectangle(self.panel_image, text_polygon, rotation)
+            text_img = self.crop_axis_aligned_rectangle(self.base_rgb_image, text_polygon, rotation)
 
         result = OCR.image_to_string(text_img, config='--psm 6')
         self.txt_edit_text.updateText(result)
@@ -1165,7 +918,7 @@ class ChartTextAnnotator(Screen):
         # first, make sure to force the selected polygon into a box
         text_polygon = self.canvas_select.elements["selection_polygon"].points / self.view_scale
 
-        h, w, _ = self.panel_image.shape
+        h, w, _ = self.base_rgb_image.shape
 
         poly = Polygon(text_polygon)
         minx, miny, maxx, maxy = poly.bounds
@@ -1177,7 +930,7 @@ class ChartTextAnnotator(Screen):
 
         # find a tighter box ... based on containment of CC's
         # first, we need a binarized version of the input image ...
-        gray_bbox_cut = self.panel_gray[miny:maxy, minx:maxx, 0]
+        gray_bbox_cut = self.base_gray_image[miny:maxy, minx:maxx, 0]
         otsu_t, binarized_cut = cv2.threshold(gray_bbox_cut, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         binarized_cut = 255 - binarized_cut
 
@@ -1214,7 +967,7 @@ class ChartTextAnnotator(Screen):
 
     def btn_edit_shrink_quad_click(self, button):
         text_polygon = self.canvas_select.elements["selection_polygon"].points / self.view_scale
-        h, w, _ = self.panel_image.shape
+        h, w, _ = self.base_rgb_image.shape
 
         # find pixels contained within bbox
         # ... create a mask for the container polygon ...

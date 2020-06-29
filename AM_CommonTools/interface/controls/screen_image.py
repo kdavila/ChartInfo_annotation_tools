@@ -18,7 +18,7 @@ class ScreenImage(ScreenElement):
         self.set_image(image, width, height, keep_aspect, interpolation)
         
         
-    def set_image(self, image, width = 0, height = 0, keep_aspect = False, interpolation=None):
+    def set_image(self, image, width=0, height=0, keep_aspect = False, interpolation=None):
         self.image = image
         self.original_image = image 
         #check for default size...

@@ -10,10 +10,12 @@ from AM_CommonTools.interface.controls.screen_image import ScreenImage
 from AM_CommonTools.interface.controls.screen_canvas import ScreenCanvas
 from AM_CommonTools.interface.controls.screen_textlist import ScreenTextlist
 
+from ChartInfo.annotation.base_image_annotator import BaseImageAnnotator
+
 from ChartInfo.data.line_data import LineData
 from ChartInfo.data.line_values import LineValues
 
-class LineChartAnnotator(Screen):
+class LineChartAnnotator(BaseImageAnnotator):
     ModeNavigate = 0
     ModeNumberEdit = 1
     ModeLineSelect = 2
@@ -23,21 +25,16 @@ class LineChartAnnotator(Screen):
     ModeConfirmNumberOverwrite = 6
     ModeConfirmExit = 7
 
-    ViewModeRawData = 0
-    ViewModeGrayData = 1
-    ViewModeRawNoData = 2
-    ViewModeGrayNoData = 3
-
     DoubleClickMaxPointDistance = 5
 
     def __init__(self, size, panel_image, panel_info, parent_screen):
-        Screen.__init__(self, "Line Chart Ground Truth Annotation Interface", size)
+        BaseImageAnnotator.__init__(self, "Line Chart Ground Truth Annotation Interface", size)
 
-        self.panel_image = panel_image
-        self.panel_gray = np.zeros(self.panel_image.shape, self.panel_image.dtype)
-        self.panel_gray[:, :, 0] = cv2.cvtColor(self.panel_image, cv2.COLOR_RGB2GRAY)
-        self.panel_gray[:, :, 1] = self.panel_gray[:, :, 0].copy()
-        self.panel_gray[:, :, 2] = self.panel_gray[:, :, 0].copy()
+        self.base_rgb_image = panel_image
+        self.base_gray_image = np.zeros(self.base_rgb_image.shape, self.base_rgb_image.dtype)
+        self.base_gray_image[:, :, 0] = cv2.cvtColor(self.base_rgb_image, cv2.COLOR_RGB2GRAY)
+        self.base_gray_image[:, :, 1] = self.base_gray_image[:, :, 0].copy()
+        self.base_gray_image[:, :, 2] = self.base_gray_image[:, :, 0].copy()
 
         self.panel_info = panel_info
 
@@ -62,22 +59,11 @@ class LineChartAnnotator(Screen):
         self.tempo_point_index = None
         self.tempo_line_values = None
         self.tempo_canvas_name = None
-
-        self.view_mode = LineChartAnnotator.ViewModeRawData
-        self.view_scale = 1.0
+        self.tempo_median_line_color = None
+        self.hover_line_point_x = None
+        self.hover_line_point_y = None
 
         self.label_title = None
-
-        self.container_view_buttons = None
-        self.lbl_zoom = None
-        self.btn_zoom_reduce = None
-        self.btn_zoom_increase = None
-        self.btn_zoom_zero = None
-
-        self.btn_view_raw_data = None
-        self.btn_view_gray_data = None
-        self.btn_view_raw_clear = None
-        self.btn_view_gray_clear = None
 
         self.container_confirm_buttons = None
         self.lbl_confirm_message = None
@@ -115,9 +101,9 @@ class LineChartAnnotator(Screen):
         self.btn_line_return_accept = None
         self.btn_line_return_cancel = None
 
-        self.container_images = None
-        self.canvas_display = None
-        self.img_main = None
+        self.container_preview_buttons = None
+        self.lbl_preview_title = None
+        self.img_preview = None
 
         self.create_controllers()
 
@@ -148,63 +134,8 @@ class LineChartAnnotator(Screen):
 
         # ===========================
         # View Options Panel
-
-        # View panel with view control buttons
-        self.container_view_buttons = ScreenContainer("container_view_buttons", (container_width, 160),
-                                                      back_color=self.general_background)
-        self.container_view_buttons.position = (self.width - self.container_view_buttons.width - 10, container_top)
-        self.elements.append(self.container_view_buttons)
-
-        # zoom ....
-        self.lbl_zoom = ScreenLabel("lbl_zoom", "Zoom: 100%", 21, 290, 1)
-        self.lbl_zoom.position = (5, 5)
-        self.lbl_zoom.set_background(self.general_background)
-        self.lbl_zoom.set_color(self.text_color)
-        self.container_view_buttons.append(self.lbl_zoom)
-
-        self.btn_zoom_reduce = ScreenButton("btn_zoom_reduce", "[ - ]", 21, 90)
-        self.btn_zoom_reduce.set_colors(button_text_color, button_back_color)
-        self.btn_zoom_reduce.position = (10, self.lbl_zoom.get_bottom() + 10)
-        self.btn_zoom_reduce.click_callback = self.btn_zoom_reduce_click
-        self.container_view_buttons.append(self.btn_zoom_reduce)
-
-        self.btn_zoom_increase = ScreenButton("btn_zoom_increase", "[ + ]", 21, 90)
-        self.btn_zoom_increase.set_colors(button_text_color, button_back_color)
-        self.btn_zoom_increase.position = (self.container_view_buttons.width - self.btn_zoom_increase.width - 10,
-                                           self.lbl_zoom.get_bottom() + 10)
-        self.btn_zoom_increase.click_callback = self.btn_zoom_increase_click
-        self.container_view_buttons.append(self.btn_zoom_increase)
-
-        self.btn_zoom_zero = ScreenButton("btn_zoom_zero", "100%", 21, 90)
-        self.btn_zoom_zero.set_colors(button_text_color, button_back_color)
-        self.btn_zoom_zero.position = ((self.container_view_buttons.width - self.btn_zoom_zero.width) / 2,
-                                       self.lbl_zoom.get_bottom() + 10)
-        self.btn_zoom_zero.click_callback = self.btn_zoom_zero_click
-        self.container_view_buttons.append(self.btn_zoom_zero)
-
-        self.btn_view_raw_data = ScreenButton("btn_view_raw_data", "RGB Data", 21, button_2_width)
-        self.btn_view_raw_data.set_colors(button_text_color, button_back_color)
-        self.btn_view_raw_data.position = (button_2_left, self.btn_zoom_zero.get_bottom() + 10)
-        self.btn_view_raw_data.click_callback = self.btn_view_raw_data_click
-        self.container_view_buttons.append(self.btn_view_raw_data)
-
-        self.btn_view_gray_data = ScreenButton("btn_view_gray", "Gray Data", 21, button_2_width)
-        self.btn_view_gray_data.set_colors(button_text_color, button_back_color)
-        self.btn_view_gray_data.position = (button_2_right, self.btn_zoom_zero.get_bottom() + 10)
-        self.btn_view_gray_data.click_callback = self.btn_view_gray_data_click
-        self.container_view_buttons.append(self.btn_view_gray_data)
-
-        self.btn_view_raw_clear = ScreenButton("btn_view_raw_clear", "RGB Clear", 21, button_2_width)
-        self.btn_view_raw_clear.set_colors(button_text_color, button_back_color)
-        self.btn_view_raw_clear.position = (button_2_left, self.btn_view_raw_data.get_bottom() + 10)
-        self.btn_view_raw_clear.click_callback = self.btn_view_raw_clear_click
-        self.container_view_buttons.append(self.btn_view_raw_clear)
-
-        self.btn_view_gray_clear = ScreenButton("btn_view_gray_clear", "Gray Clear", 21, button_2_width)
-        self.btn_view_gray_clear.set_colors(button_text_color, button_back_color)
-        self.btn_view_gray_clear.position = (button_2_right, self.btn_view_raw_data.get_bottom() + 10)
-        self.btn_view_gray_clear.click_callback = self.btn_view_gray_clear_click
-        self.container_view_buttons.append(self.btn_view_gray_clear)
+        self.create_image_annotator_controls(container_top, container_width, self.general_background, self.text_color,
+                                             button_text_color, button_back_color)
 
         # ===========================
         # confirmation panel
@@ -414,181 +345,46 @@ class LineChartAnnotator(Screen):
 
         self.container_line_buttons.visible = False
 
-        # ======================================
-        # visuals
-        # ===========================
-        # Image
+        # =====================
+        # Preview of point to add
 
-        image_width = self.width - self.container_view_buttons.width - 30
-        image_height = self.height - container_top - 10
-        self.container_images = ScreenContainer("container_images", (image_width, image_height), back_color=(0, 0, 0))
-        self.container_images.position = (10, container_top)
-        self.elements.append(self.container_images)
+        self.container_preview_buttons = ScreenContainer("container_preview_buttons", (container_width, 280),
+                                                         back_color=darker_background)
+        self.container_preview_buttons.position = (self.container_confirm_buttons.get_left(),
+                                                   self.container_confirm_buttons.get_bottom() + 20)
+        self.elements.append(self.container_preview_buttons)
 
-        # ... image objects ...
+        self.lbl_preview_title = ScreenLabel("lbl_preview_title", "Right Click to add this Point", 25, 290, 1)
+        self.lbl_preview_title.position = (5, 5)
+        self.lbl_preview_title.set_background(darker_background)
+        self.lbl_preview_title.set_color(self.text_color)
+        self.container_preview_buttons.append(self.lbl_preview_title)
+
         tempo_blank = np.zeros((50, 50, 3), np.uint8)
         tempo_blank[:, :, :] = 255
-        self.img_main = ScreenImage("img_main", tempo_blank, 0, 0, True, cv2.INTER_NEAREST)
-        self.img_main.position = (0, 0)
-        self.img_main.mouse_button_down_callback = self.img_mouse_down
-        self.img_main.double_click_callback = self.img_mouse_double_click
-        self.container_images.append(self.img_main)
+        self.img_preview = ScreenImage("img_preview", tempo_blank, 200, 200, True, cv2.INTER_NEAREST)
+        self.img_preview.position = (int(container_width / 2 - 100), self.lbl_preview_title.get_bottom() + 20)
+        self.container_preview_buttons.append(self.img_preview)
 
-        self.canvas_display = ScreenCanvas("canvas_display", 100, 100)
-        self.canvas_display.position = (0, 0)
-        self.canvas_display.locked = True
-        self.canvas_display.object_edited_callback = self.canvas_display_object_edited
-        self.container_images.append(self.canvas_display)
+        self.img_main.mouse_motion_callback = self.img_main_mouse_motion
 
         self.prepare_number_controls()
 
         self.set_editor_mode(LineChartAnnotator.ModeNavigate)
 
-    def btn_zoom_reduce_click(self, button):
-        self.update_view_scale(self.view_scale - 0.25)
+    def custom_view_update(self, modified_image):
+        x1, y1, x2, y2 = self.panel_info.axes.bounding_box
+        x1 = int(x1)
+        y1 = int(y1)
+        x2 = int(x2)
+        y2 = int(y2)
 
-    def btn_zoom_increase_click(self, button):
-        self.update_view_scale(self.view_scale + 0.25)
-
-    def btn_zoom_zero_click(self, button):
-        self.update_view_scale(1.0)
-
-    def btn_view_raw_data_click(self, button):
-        self.view_mode = LineChartAnnotator.ViewModeRawData
-        self.update_current_view()
-
-    def btn_view_gray_data_click(self, button):
-        self.view_mode = LineChartAnnotator.ViewModeGrayData
-        self.update_current_view()
-
-    def btn_view_raw_clear_click(self, button):
-        self.view_mode = LineChartAnnotator.ViewModeRawNoData
-        self.update_current_view()
-
-    def btn_view_gray_clear_click(self, button):
-        self.view_mode = LineChartAnnotator.ViewModeGrayNoData
-        self.update_current_view()
-
-    def update_view_scale(self, new_scale):
-        prev_scale = self.view_scale
-
-        if 0.25 <= new_scale <= 4.0:
-            self.view_scale = new_scale
-        else:
-            return
-
-        # keep previous offsets ...
-        scroll_offset_y = self.container_images.v_scroll.value if self.container_images.v_scroll.active else 0
-        scroll_offset_x = self.container_images.h_scroll.value if self.container_images.h_scroll.active else 0
-
-        prev_center_y = scroll_offset_y + self.container_images.height / 2
-        prev_center_x = scroll_offset_x + self.container_images.width / 2
-
-        # compute new scroll box offsets
-        scale_factor = (new_scale / prev_scale)
-        new_off_y = prev_center_y * scale_factor - self.container_images.height / 2
-        new_off_x = prev_center_x * scale_factor - self.container_images.width / 2
-
-        # update view ....
-        self.update_current_view(True)
-
-        # set offsets
-        if self.container_images.v_scroll.active and 0 <= new_off_y <= self.container_images.v_scroll.max:
-            self.container_images.v_scroll.value = new_off_y
-        if self.container_images.h_scroll.active and 0 <= new_off_x <= self.container_images.h_scroll.max:
-            self.container_images.h_scroll.value = new_off_x
-
-        # re-scale objects from both canvas
-        # ... display ...
-        for polygon_name in self.canvas_display.elements:
-            display_polygon = self.canvas_display.elements[polygon_name]
-            display_polygon.points *= scale_factor
-
-        # update scale text ...
-        self.lbl_zoom.set_text("Zoom: " + str(int(round(self.view_scale * 100,0))) + "%")
-
-    def update_current_view(self, resized=False):
-        if self.view_mode in [LineChartAnnotator.ViewModeGrayData, LineChartAnnotator.ViewModeGrayNoData]:
-            # gray scale mode
-            base_image = self.panel_gray
-        else:
-            base_image = self.panel_image
-
-        h, w, c = base_image.shape
-
-        modified_image = base_image.copy()
-
-        if self.view_mode in [LineChartAnnotator.ViewModeRawData, LineChartAnnotator.ViewModeGrayData]:
-            # (for example, draw the polygons)
-            self.canvas_display.visible = True
-
-            x1, y1, x2, y2 = self.panel_info.axes.bounding_box
-            x1 = int(x1)
-            y1 = int(y1)
-            x2 = int(x2)
-            y2 = int(y2)
-
-            # axes lines
-            cv2.line(modified_image, (x1, y1), (x1, y2), (0, 255, 0), thickness=1)  # y = green
-            cv2.line(modified_image, (x1, y2), (x2, y2), (0, 0, 255), thickness=1)  # x = blue
-            # close the data area rectangle ?
-            # cv2.line(modified_image, (x2, y1), (x2, y2), (0, 128, 0), thickness=1)
-            # cv2.line(modified_image, (x1, y1), (x2, y1), (0, 0, 128), thickness=1)
-
-            """
-            TODO: remove this legacy code once that Canvas-basd line edit is well tested...
-            # check which lines will be drawn ...
-            if self.edition_mode in [LineChartAnnotator.ModeLineEdit,
-                                     LineChartAnnotator.ModePointAdd,
-                                     LineChartAnnotator.ModePointEdit]:
-                # Only draw the line being edited ... based on its temporary changes ...
-                lines_to_draw = [self.tempo_line_values]
-            else:
-                # draw everything ...
-                lines_to_draw = self.data.lines
-
-            # for each line to drawn ...
-            for idx, line_values in enumerate(lines_to_draw):
-                line_color = self.canvas_display.colors[idx % len(self.canvas_display.colors)]
-
-                all_transformed_points = []
-                for p_idx in range(len(line_values.points)):
-                    # transform current point from relative space to absolute pixel space
-                    c_x, c_y = line_values.points[p_idx]
-                    c_x += x1
-                    c_y = y2 - c_y
-                    current_point = (int(round(c_x)), int(round(c_y)))
-
-                    all_transformed_points.append(current_point)
-
-                    # Draw the points as small circles ...
-                    if (self.edition_mode == LineChartAnnotator.ModeLineEdit and
-                        self.lbx_line_points.selected_option_value is not None and
-                        int(self.lbx_line_points.selected_option_value) == p_idx):
-                        # empty large circle for selected option
-                        cv2.circle(modified_image, current_point, 5, line_color, thickness=2)
-                    else:
-                        # filled small circle
-                        cv2.circle(modified_image, current_point, 3, line_color,thickness=-1)
-
-                # Draw the line ...
-                all_transformed_points = np.array(all_transformed_points).astype(np.int32)
-                modified_image = cv2.polylines(modified_image, [all_transformed_points], False, line_color)
-            """
-        else:
-            self.canvas_display.visible = False
-
-        # finally, resize ...
-        modified_image = cv2.resize(modified_image, (int(w * self.view_scale), int(h * self.view_scale)),
-                                    interpolation=cv2.INTER_NEAREST)
-
-        # update canvas size ....
-        self.canvas_display.height, self.canvas_display.width, _ = modified_image.shape
-
-        # replace/update image
-        self.img_main.set_image(modified_image, 0, 0, True, cv2.INTER_NEAREST)
-        if resized:
-            self.container_images.recalculate_size()
+        # axes lines
+        cv2.line(modified_image, (x1, y1), (x1, y2), (0, 255, 0), thickness=1)  # y = green
+        cv2.line(modified_image, (x1, y2), (x2, y2), (0, 0, 255), thickness=1)  # x = blue
+        # close the data area rectangle ?
+        # cv2.line(modified_image, (x2, y1), (x2, y2), (0, 128, 0), thickness=1)
+        # cv2.line(modified_image, (x1, y1), (x2, y1), (0, 0, 128), thickness=1)
 
     def btn_confirm_cancel_click(self, button):
         if self.edition_mode in [LineChartAnnotator.ModeConfirmExit]:
@@ -718,22 +514,37 @@ class LineChartAnnotator(Screen):
 
         return rel_x, rel_y
 
-    def img_mouse_down(self, img_object, pos, button):
-        if button == 1:
-            if self.edition_mode in [LineChartAnnotator.ModePointAdd, LineChartAnnotator.ModePointEdit]:
-                # click pos ...
-                rel_x, rel_y = self.from_pos_to_rel_click(pos)
+    def img_main_mouse_button_down(self, img_object, pos, button):
+        if self.edition_mode in [LineChartAnnotator.ModePointAdd, LineChartAnnotator.ModePointEdit]:
+            if self.edition_mode == LineChartAnnotator.ModePointAdd:
+                # Add the new point
+                if button == 1:
+                    # click pos ...
+                    rel_x, rel_y = self.from_pos_to_rel_click(pos)
+                elif button == 3:
+                    if self.hover_line_point_x is not None:
+                        # suggested position ...
+                        pos = (self.hover_line_point_x * self.view_scale, self.hover_line_point_y * self.view_scale)
+                        rel_x, rel_y = self.from_pos_to_rel_click(pos)
+                    else:
+                        rel_x, rel_y = None, None
+                else:
+                    rel_x, rel_y = None, None
 
-                if self.edition_mode == LineChartAnnotator.ModePointAdd:
-                    # Add the new point
+                if rel_x is not None:
+                    # add point ....
                     self.tempo_line_values.add_point(rel_x, rel_y, LineValues.InsertByXValue)
+
                     # update canvas ....
                     pl_points = self.line_points_to_canvas_points(self.tempo_line_values.points)
                     self.canvas_display.update_polyline_element(self.tempo_canvas_name, pl_points, True)
 
-                    # .. and stay on current state until cancel is pressed.
+                    # update the median color of the line ...
+                    self.update_line_median_color()
 
-                self.update_current_view()
+                # .. and stay on current state until cancel is pressed.
+
+            self.update_current_view()
 
     def prepare_number_controls(self):
         n_lines = self.data.total_lines()
@@ -790,6 +601,7 @@ class LineChartAnnotator(Screen):
         self.container_number_buttons.visible = (self.edition_mode == LineChartAnnotator.ModeNumberEdit)
         self.container_data_buttons.visible = (self.edition_mode == LineChartAnnotator.ModeLineSelect)
         self.container_line_buttons.visible = (self.edition_mode == LineChartAnnotator.ModeLineEdit)
+        self.container_preview_buttons.visible = (self.edition_mode == LineChartAnnotator.ModePointAdd)
 
         # Confirm panel and buttons  ...
         self.container_confirm_buttons.visible = self.edition_mode in [LineChartAnnotator.ModeConfirmNumberOverwrite,
@@ -877,7 +689,30 @@ class LineChartAnnotator(Screen):
         del_idx = int(self.lbx_line_points.selected_option_value)
         self.delete_tempo_line_point(del_idx)
 
+    def update_line_median_color(self):
+        # get the canvas based coordinates ....
+        canvas_points = self.line_points_to_canvas_points(self.tempo_line_values.points)
+        # transform to image space
+        canvas_points /= self.view_scale
+
+        # get the colors of the pixels on the line
+        colors = []
+        for x, y in canvas_points:
+            img_x = int(round(x))
+            img_y = int(round(y))
+
+            if 0 <= img_x < self.base_rgb_image.shape[1] and 0 <= img_y < self.base_rgb_image.shape[0]:
+                colors.append(self.base_rgb_image[img_y, img_x])
+
+        # get the average
+        if len(colors) > 0:
+            self.tempo_median_line_color = np.median(colors, axis=0)
+        else:
+            # default
+            self.tempo_median_line_color = np.zeros(3, np.float64)
+
     def btn_line_point_add_click(self, button):
+        self.update_line_median_color()
         self.set_editor_mode(LineChartAnnotator.ModePointAdd)
 
     def btn_line_return_accept_click(self, button):
@@ -901,7 +736,7 @@ class LineChartAnnotator(Screen):
     def lbx_line_points_value_changed(self, new_value, old_value):
         pass
 
-    def img_mouse_double_click(self, img, position, button):
+    def img_main_mouse_double_click(self, img, position, button):
         if self.edition_mode == LineChartAnnotator.ModeLineEdit:
             # click relative position
             rel_x, rel_y = self.from_pos_to_rel_click(position)
@@ -933,3 +768,112 @@ class LineChartAnnotator(Screen):
 
     def canvas_display_object_edited(self, canvas, element_name):
         pass
+
+    def img_main_mouse_motion(self, screen_img, pos, rel, buttons):
+        if self.edition_mode in [LineChartAnnotator.ModePointAdd]:
+            mouse_x, mouse_y = pos
+
+            img_pixel_x = int(round(mouse_x / self.view_scale))
+            img_pixel_y = int(round(mouse_y / self.view_scale))
+
+            zoom_pixels = 20
+            zoom_border = 2
+            blur_size = 5
+            min_dist = 5
+            if img_pixel_x + zoom_pixels > self.base_rgb_image.shape[1]:
+                img_pixel_x = self.base_rgb_image.shape[1] - zoom_pixels * 2
+            elif img_pixel_x - zoom_pixels < 0:
+                img_pixel_x = zoom_pixels
+
+            if img_pixel_y + zoom_pixels > self.base_rgb_image.shape[0]:
+                img_pixel_y = self.base_rgb_image.shape[0] - zoom_pixels * 2
+            elif img_pixel_y - zoom_pixels < 0:
+                img_pixel_y = zoom_pixels
+
+            cut_min_x = img_pixel_x - zoom_pixels
+            cut_max_x = img_pixel_x + zoom_pixels
+            cut_min_y = img_pixel_y - zoom_pixels
+            cut_max_y = img_pixel_y + zoom_pixels
+            zoom_cut = self.base_rgb_image[cut_min_y:cut_max_y, cut_min_x:cut_max_x].copy()
+
+            raw_diff = zoom_cut - self.tempo_median_line_color
+            sqr_diff = np.power(raw_diff, 2.0)
+            # print("----")
+            # print(self.tempo_median_line_color)
+            # print(zoom_cut[:5, :5])
+            # print(raw_diff[:5, :5])
+            # print(sqr_diff[:5, :5])
+
+            # get the raw distance ...
+            sqr_diff = np.sum(sqr_diff, axis=2)
+
+            # smooth distance ... this helps preferring the middle of lines instead of borders
+            sqr_diff = cv2.blur(sqr_diff, (blur_size, blur_size))
+
+            # remove any point too close to existing points ...
+            canvas_points = self.line_points_to_canvas_points(self.tempo_line_values.points)
+            # transform to image space
+            canvas_points /= self.view_scale
+
+            # decrease color contrast
+            zoom_cut = zoom_cut.astype(np.float64)
+            zoom_cut /= 2
+            zoom_cut += 63
+            zoom_cut = zoom_cut.astype(np.uint8)
+
+            # ...for each point in the line ...
+            replacement_val = sqr_diff.max()
+            for x, y in canvas_points:
+                img_x = int(round(x))
+                img_y = int(round(y))
+
+                # check if it falls within the current patch ...
+                if cut_min_x <= img_x < cut_max_x and cut_min_y <= img_y < cut_max_y:
+                    # assign a value that will make it unlikely to be selected ...
+                    p_min_y = max(0, img_y - min_dist - cut_min_y)
+                    p_max_y = img_y + min_dist + 1 - cut_min_y
+                    p_min_x = max(0, img_x - min_dist - cut_min_x)
+                    p_max_x = img_x + min_dist + 1 - cut_min_x
+                    # print("HERE! " + str((x, y, img_x, img_y, cut_min_x, cut_max_x, cut_min_y, cut_max_y, p_min_x, p_min_y)))
+                    sqr_diff[p_min_y:p_max_y, p_min_x:p_max_x] = replacement_val + 1
+
+                    # also, show a mark in the preview ...
+                    zoom_cut[p_min_y:p_max_y, p_min_x:p_max_x] = (255, 0, 0)
+
+            # eliminate the borders ...
+            sqr_diff[:zoom_border, :] = replacement_val + 1
+            sqr_diff[-zoom_border:, :] = replacement_val + 1
+            sqr_diff[:, :zoom_border] = replacement_val + 1
+            sqr_diff[:, -zoom_border:] = replacement_val + 1
+
+            # cv2.imshow("test", ((sqr_diff / sqr_diff.max()) * 255).astype(np.uint8))
+
+            min_idx = np.argmin(sqr_diff)
+            rel_x = min_idx % zoom_cut.shape[1]
+            rel_y = int(min_idx / zoom_cut.shape[0])
+
+            if sqr_diff[rel_y, rel_x] < 10000:
+                # print("A")
+                # the color is similar enough ... add suggestion
+
+                self.hover_line_point_x = rel_x + cut_min_x
+                self.hover_line_point_y = rel_y + cut_min_y
+
+                # print(self.tempo_median_line_color)
+                # print(sqr_diff[rel_y, rel_x])
+
+                # highlight the suggested pixel
+                zoom_cut[rel_y, :] = (0, 255, 0)
+                zoom_cut[:, rel_x] = (0, 255, 0)
+            else:
+                # print("B")
+                # the closest color is not similar enough, do not suggest anything
+                self.hover_line_point_x = None
+                self.hover_line_point_y = None
+
+                # highlight the center pixel by default ...
+                zoom_cut[int(zoom_cut.shape[0] / 2), :] = (255, 0, 0)
+                zoom_cut[:, int(zoom_cut.shape[1] / 2)] = (255, 0, 0)
+
+            self.img_preview.set_image(zoom_cut, 200, 200)
+

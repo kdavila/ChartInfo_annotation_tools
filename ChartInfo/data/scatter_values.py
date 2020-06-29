@@ -1,7 +1,11 @@
 
+import numpy as np
+
 from shapely.geometry import LineString, Point
 
 class ScatterValues:
+    PointDistanceSame = 0.95
+
     def __init__(self):
         self.points = []
 
@@ -22,9 +26,20 @@ class ScatterValues:
         if 0 <= idx <= len(self.points):
             self.points[idx] = x, y
 
+    def contains_point(self, x, y):
+        if len(self.points) == 0:
+            return False
+        
+        raw_diff = np.array(self.points) - np.array([[x, y]])
+        all_distances = np.linalg.norm(raw_diff, axis=1)
+
+        return all_distances.min() <= ScatterValues.PointDistanceSame
+
     def add_point(self, x, y):
-        # simply add ....
-        self.points.append((x, y))
+        # check that there is not point in this position already ...
+        if not self.contains_point(x, y):
+            # add ....
+            self.points.append((x, y))
 
     def remove_point(self, idx):
         if 0 <= idx <= len(self.points):

@@ -102,6 +102,15 @@ Example:
 	# This will generate a testing dataset for Task 3  
 	python chart_json_export.py data/images data/annotations data/task3_json 3 0
 
+## Update (June 28, 2020)
+  - Minor improvements to data annotations
+    - In some cases, legend boxes will be automatically inferred from image
+	- Reduced the number of intermediate zoom levels between 100% and 400%
+	- Added heuristics to help annotate line and scatter charts by using right
+      click on "Add Points" mode. 
+      - For Scatter Charts, the user can save time on charts containing solid colored marks by just placing the cursor over the data mark and then using right click, then the new point will be added on the centroid of current mark as shown on the right-side panel of the annotation tool.
+	  - For Line Charts, the user can save time on charts containing solid colored lines by placing the cursor close enough to the line and then using right click to add the suggested line point shown in green in the right side panel.
+
 ## Update (June 17, 2020)
   - Major improvements to data annotations
     - Tools for Bar Charts and Box Charts now use draggable tools to quickly adjust bar/box parameters

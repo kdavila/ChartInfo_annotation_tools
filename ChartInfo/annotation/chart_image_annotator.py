@@ -16,6 +16,8 @@ from ChartInfo.data.image_info import ImageInfo
 from ChartInfo.data.chart_info import ChartInfo
 from ChartInfo.data.panel_tree import PanelTree
 
+from ChartInfo.annotation.base_image_annotator import BaseImageAnnotator
+
 from ChartInfo.annotation.chart_text_annotator import ChartTextAnnotator
 from ChartInfo.annotation.chart_legend_annotator import ChartLegendAnnotator
 from ChartInfo.annotation.chart_axes_annotator import ChartAxesAnnotator
@@ -28,7 +30,7 @@ from ChartInfo.annotation.scatter_chart_annotator import ScatterChartAnnotator
 from ChartInfo.util.time_stats import TimeStats
 
 
-class ChartImageAnnotator(Screen):
+class ChartImageAnnotator(BaseImageAnnotator):
     ModeNavigate = 0
     ModeEditPanels = 1
     ModeSelectPanelSplit = 2
@@ -36,11 +38,6 @@ class ChartImageAnnotator(Screen):
     ModeEditClass = 4
     ModeConfirmOverwriteClass = 5
     ModeConfirmExit = 6
-
-    ViewModeRawData = 0
-    ViewModeGrayData = 1
-    ViewModeRawNoData = 2
-    ViewModeGrayNoData = 3
 
     SplitOperationXSplit = 0
     SplitOperationYSplit = 1
@@ -53,7 +50,7 @@ class ChartImageAnnotator(Screen):
     WaitModeData = 4
 
     def __init__(self, size, chart_dir, annotation_dir, relative_path, parent_menu, admin_mode):
-        Screen.__init__(self, "Chart Ground Truth Annotation Interface", size)
+        BaseImageAnnotator.__init__(self, "Chart Ground Truth Annotation Interface", size)
 
         self.general_background = (20, 85, 50)
         self.text_color = (255, 255, 255)
@@ -76,24 +73,22 @@ class ChartImageAnnotator(Screen):
         self.annotation_filename = self.output_dir + "/" + img_base + ".xml"
 
         # first ... load image ....
-        self.current_image = cv2.imread(self.chart_dir + self.relative_path)
-        self.current_image = cv2.cvtColor(self.current_image, cv2.COLOR_BGR2RGB)
+        self.base_rgb_image = cv2.imread(self.chart_dir + self.relative_path)
+        self.base_rgb_image = cv2.cvtColor(self.base_rgb_image, cv2.COLOR_BGR2RGB)
         # ... and cache the gray-scale version
-        self.current_gray = np.zeros(self.current_image.shape, self.current_image.dtype)
-        self.current_gray[:, :, 0] = cv2.cvtColor(self.current_image, cv2.COLOR_RGB2GRAY)
-        self.current_gray[:, :, 1] = self.current_gray[:, :, 0].copy()
-        self.current_gray[:, :, 2] = self.current_gray[:, :, 0].copy()
+        self.base_gray_image = np.zeros(self.base_rgb_image.shape, self.base_rgb_image.dtype)
+        self.base_gray_image[:, :, 0] = cv2.cvtColor(self.base_rgb_image, cv2.COLOR_RGB2GRAY)
+        self.base_gray_image[:, :, 1] = self.base_gray_image[:, :, 0].copy()
+        self.base_gray_image[:, :, 2] = self.base_gray_image[:, :, 0].copy()
 
         # load annotations for this image .... (if any)
         if os.path.exists(self.annotation_filename):
             # annotation found!
-            self.image_info = ImageInfo.FromXML(self.annotation_filename, self.current_image)
+            self.image_info = ImageInfo.FromXML(self.annotation_filename, self.base_rgb_image)
         else:
             # create an empty annotation
-            self.image_info = ImageInfo.CreateDefault(self.current_image)
+            self.image_info = ImageInfo.CreateDefault(self.base_rgb_image)
 
-        self.view_mode = ChartImageAnnotator.ViewModeRawData
-        self.view_scale = 1.0
         self.split_panel_operation = None
         self.tempo_panel_tree = None
         self.selected_panel = 0
@@ -106,17 +101,6 @@ class ChartImageAnnotator(Screen):
         self.lbl_confirm_message = None
         self.btn_confirm_cancel = None
         self.btn_confirm_accept = None
-
-        self.container_view_buttons = None
-        self.lbl_zoom = None
-        self.btn_zoom_reduce = None
-        self.btn_zoom_increase = None
-        self.btn_zoom_zero = None
-
-        self.btn_view_raw_data = None
-        self.btn_view_gray_data = None
-        self.btn_view_raw_clear = None
-        self.btn_view_gray_clear = None
 
         self.container_panels_buttons = None
         self.lbl_panels_title = None
@@ -155,9 +139,6 @@ class ChartImageAnnotator(Screen):
         self.btn_save = None
         self.btn_return = None
 
-        self.container_images = None
-        self.img_main = None
-
         # generate the interface!
         self.create_controllers()
 
@@ -190,64 +171,8 @@ class ChartImageAnnotator(Screen):
 
         # ===========================
         # View Options Panel
-
-        # View panel with view control buttons
-        self.container_view_buttons = ScreenContainer("container_view_buttons", (container_width, 160),
-                                                      back_color=self.general_background)
-        self.container_view_buttons.position = (self.width - self.container_view_buttons.width - 10, container_top)
-        self.elements.append(self.container_view_buttons)
-
-
-        # zoom ....
-        self.lbl_zoom = ScreenLabel("lbl_zoom", "Zoom: 100%", 21, 290, 1)
-        self.lbl_zoom.position = (5, 5)
-        self.lbl_zoom.set_background(self.general_background)
-        self.lbl_zoom.set_color(self.text_color)
-        self.container_view_buttons.append(self.lbl_zoom)
-
-        self.btn_zoom_reduce = ScreenButton("btn_zoom_reduce", "[ - ]", 21, 90)
-        self.btn_zoom_reduce.set_colors(button_text_color, button_back_color)
-        self.btn_zoom_reduce.position = (10, self.lbl_zoom.get_bottom() + 10)
-        self.btn_zoom_reduce.click_callback = self.btn_zoom_reduce_click
-        self.container_view_buttons.append(self.btn_zoom_reduce)
-
-        self.btn_zoom_increase = ScreenButton("btn_zoom_increase", "[ + ]", 21, 90)
-        self.btn_zoom_increase.set_colors(button_text_color, button_back_color)
-        self.btn_zoom_increase.position = (self.container_view_buttons.width - self.btn_zoom_increase.width - 10,
-                                           self.lbl_zoom.get_bottom() + 10)
-        self.btn_zoom_increase.click_callback = self.btn_zoom_increase_click
-        self.container_view_buttons.append(self.btn_zoom_increase)
-
-        self.btn_zoom_zero = ScreenButton("btn_zoom_zero", "100%", 21, 90)
-        self.btn_zoom_zero.set_colors(button_text_color, button_back_color)
-        self.btn_zoom_zero.position = ((self.container_view_buttons.width - self.btn_zoom_zero.width) / 2,
-                                       self.lbl_zoom.get_bottom() + 10)
-        self.btn_zoom_zero.click_callback = self.btn_zoom_zero_click
-        self.container_view_buttons.append(self.btn_zoom_zero)
-
-        self.btn_view_raw_data = ScreenButton("btn_view_raw_data", "RGB Data", 21, button_2_width)
-        self.btn_view_raw_data.set_colors(button_text_color, button_back_color)
-        self.btn_view_raw_data.position = (button_2_left, self.btn_zoom_zero.get_bottom() + 10)
-        self.btn_view_raw_data.click_callback = self.btn_view_raw_data_click
-        self.container_view_buttons.append(self.btn_view_raw_data)
-
-        self.btn_view_gray_data = ScreenButton("btn_view_gray", "Gray Data", 21, button_2_width)
-        self.btn_view_gray_data.set_colors(button_text_color, button_back_color)
-        self.btn_view_gray_data.position = (button_2_right, self.btn_zoom_zero.get_bottom() + 10)
-        self.btn_view_gray_data.click_callback = self.btn_view_gray_data_click
-        self.container_view_buttons.append(self.btn_view_gray_data)
-
-        self.btn_view_raw_clear = ScreenButton("btn_view_raw_clear", "RGB Clear", 21, button_2_width)
-        self.btn_view_raw_clear.set_colors(button_text_color, button_back_color)
-        self.btn_view_raw_clear.position = (button_2_left, self.btn_view_raw_data.get_bottom() + 10)
-        self.btn_view_raw_clear.click_callback = self.btn_view_raw_clear_click
-        self.container_view_buttons.append(self.btn_view_raw_clear)
-
-        self.btn_view_gray_clear = ScreenButton("btn_view_gray_clear", "Gray Clear", 21, button_2_width)
-        self.btn_view_gray_clear.set_colors(button_text_color, button_back_color)
-        self.btn_view_gray_clear.position = (button_2_right, self.btn_view_raw_data.get_bottom() + 10)
-        self.btn_view_gray_clear.click_callback = self.btn_view_gray_clear_click
-        self.container_view_buttons.append(self.btn_view_gray_clear)
+        self.create_image_annotator_controls(container_top, container_width, self.general_background, self.text_color,
+                                             button_text_color, button_back_color)
 
         # ===========================
         # confirmation panel
@@ -278,21 +203,6 @@ class ChartImageAnnotator(Screen):
         self.container_confirm_buttons.append(self.btn_confirm_accept)
 
         # ===========================
-        # Image
-
-        image_width = self.width - self.container_view_buttons.width - 30
-        image_height = self.height - container_top - 10
-        self.container_images = ScreenContainer("container_images", (image_width, image_height), back_color=(0, 0, 0))
-        self.container_images.position = (10, container_top)
-        self.elements.append(self.container_images)
-
-        # ... image objects ...
-        tempo_blank = np.zeros((50, 50, 3), np.uint8)
-        tempo_blank[:, :, :] = 255
-        self.img_main = ScreenImage("img_main", tempo_blank, 0, 0, True, cv2.INTER_NEAREST)
-        self.img_main.position = (0, 0)
-        self.img_main.mouse_button_down_callback = self.img_main_mouse_button_down
-        self.container_images.append(self.img_main)
 
         # panel for multi-panel figure options
         panel_buttons_bg = (10, 55, 25)
@@ -305,8 +215,6 @@ class ChartImageAnnotator(Screen):
         self.lbl_panels_title.set_background(panel_buttons_bg)
         self.lbl_panels_title.set_color(self.text_color)
         self.container_panels_buttons.append(self.lbl_panels_title)
-
-
 
         if self.admin_mode:
             self.btn_label_panels = ScreenButton("btn_label_panels", "Annotate", 21, button_2_width)
@@ -547,7 +455,7 @@ class ChartImageAnnotator(Screen):
         if self.edition_mode == ChartImageAnnotator.ModeConfirmOverwritePanels:
             # commit changes ....
             # ... create an empty annotation ...
-            self.image_info = ImageInfo.CreateDefault(self.current_image)
+            self.image_info = ImageInfo.CreateDefault(self.base_rgb_image)
             # copy the panel structure ...
             self.image_info.panel_tree = PanelTree.Copy(self.tempo_panel_tree)
             # ... get the empty annotation for each panel ...
@@ -602,8 +510,6 @@ class ChartImageAnnotator(Screen):
             self.parent.refresh_page()
             self.return_screen = self.parent
 
-
-
     def btn_confirm_cancel_click(self, button):
         if self.edition_mode == ChartImageAnnotator.ModeSelectPanelSplit:
             # simply go back ...
@@ -620,31 +526,6 @@ class ChartImageAnnotator(Screen):
             # go back to navigation mode ... no changes commited
             self.set_editor_mode(ChartImageAnnotator.ModeNavigate)
             self.update_current_view(False)
-
-    def btn_zoom_reduce_click(self, button):
-        self.update_view_scale(self.view_scale - 0.25)
-
-    def btn_zoom_increase_click(self, button):
-        self.update_view_scale(self.view_scale + 0.25)
-
-    def btn_zoom_zero_click(self, button):
-        self.update_view_scale(1.0)
-
-    def btn_view_raw_data_click(self, button):
-        self.view_mode = ChartImageAnnotator.ViewModeRawData
-        self.update_current_view()
-
-    def btn_view_gray_data_click(self, button):
-        self.view_mode = ChartImageAnnotator.ViewModeGrayData
-        self.update_current_view()
-
-    def btn_view_raw_clear_click(self, button):
-        self.view_mode = ChartImageAnnotator.ViewModeRawNoData
-        self.update_current_view()
-
-    def btn_view_gray_clear_click(self, button):
-        self.view_mode = ChartImageAnnotator.ViewModeGrayNoData
-        self.update_current_view()
 
     def get_reset_time_delta(self):
         new_time = time.time()
@@ -696,7 +577,6 @@ class ChartImageAnnotator(Screen):
 
         print("Data saved to: " + self.annotation_filename)
         self.unsaved_changes = False
-
 
     def btn_edit_class_click(self, button):
         prev_key = self.get_image_class_key()
@@ -783,104 +663,51 @@ class ChartImageAnnotator(Screen):
 
         self.return_screen = data_annotator
 
-    def update_current_view(self, resized=False):
-        if self.view_mode in [ChartImageAnnotator.ViewModeGrayData, ChartImageAnnotator.ViewModeGrayNoData]:
-            # gray scale mode
-            base_image = self.current_gray
+    def custom_view_update(self, modified_image):
+        if self.edition_mode in [ChartImageAnnotator.ModeEditPanels, ChartImageAnnotator.ModeSelectPanelSplit,
+                                 ChartImageAnnotator.ModeConfirmOverwritePanels]:
+            # get panels from temporary tree
+            panel_nodes = self.tempo_panel_tree.root.get_leaves()
+            temporary_tree = True
         else:
-            base_image = self.current_image
+            # get from current tree
+            panel_nodes = self.image_info.panel_tree.root.get_leaves()
+            temporary_tree = False
 
-        h, w, c = base_image.shape
-
-        modified_image = base_image.copy()
-
-        if self.view_mode in [ChartImageAnnotator.ViewModeRawData, ChartImageAnnotator.ViewModeGrayData]:
-            if self.edition_mode in [ChartImageAnnotator.ModeEditPanels, ChartImageAnnotator.ModeSelectPanelSplit,
-                                     ChartImageAnnotator.ModeConfirmOverwritePanels]:
-                # get panels from temporary tree
-                panel_nodes = self.tempo_panel_tree.root.get_leaves()
-                temporary_tree = True
+        for idx, panel_node in enumerate(panel_nodes):
+            # mark the panel boundaries ...
+            if idx == self.selected_panel and self.edition_mode == ChartImageAnnotator.ModeNavigate:
+                border_color = (0, 255, 0)
             else:
-                # get from current tree
-                panel_nodes = self.image_info.panel_tree.root.get_leaves()
-                temporary_tree = False
+                border_color = (255, 0, 0)
 
-            for idx, panel_node in enumerate(panel_nodes):
-                # mark the panel boundaries ...
-                if idx == self.selected_panel and self.edition_mode == ChartImageAnnotator.ModeNavigate:
-                    border_color = (0, 255, 0)
-                else:
-                    border_color = (255, 0, 0)
+            if not temporary_tree:
+                # show the chart type (and orientation)
+                chart_type, chart_orientation = self.image_info.panels[idx].get_description()
+                chart_desc = "{0:s} ({1:s})".format(chart_type, chart_orientation)
+                font_scale = 2
+                font_face = cv2.FONT_HERSHEY_PLAIN
+                font_thickness = 1
+                font_padding = 2
 
-                if not temporary_tree:
-                    # show the chart type (and orientation)
-                    chart_type, chart_orientation = self.image_info.panels[idx].get_description()
-                    chart_desc = "{0:s} ({1:s})".format(chart_type, chart_orientation)
-                    font_scale = 2
-                    font_face = cv2.FONT_HERSHEY_PLAIN
-                    font_thickness = 1
-                    font_padding = 2
+                text_size, font_baseline = cv2.getTextSize(chart_desc, font_face, font_scale, font_thickness)
 
-                    text_size, font_baseline = cv2.getTextSize(chart_desc, font_face, font_scale, font_thickness)
+                modified_image[panel_node.y1:panel_node.y1 + text_size[1] + 10,
+                panel_node.x1:panel_node.x1 + text_size[0] + 10] = 255
 
-                    modified_image[panel_node.y1:panel_node.y1 + text_size[1] + 10, panel_node.x1:panel_node.x1 + text_size[0] + 10] = 255
+                vertical_displacement = font_padding + text_size[1]
+                text_loc = (panel_node.x1 + font_padding, panel_node.y1 + vertical_displacement)
+                shadow_loc = (text_loc[0] + 2, text_loc[1] + 1)
+                cv2.putText(modified_image, chart_desc, shadow_loc, font_face, font_scale, (0, 0, 0),
+                            thickness=font_thickness, lineType=cv2.LINE_AA)
 
-                    vertical_displacement = font_padding + text_size[1]
-                    text_loc = (panel_node.x1 + font_padding, panel_node.y1 + vertical_displacement)
-                    shadow_loc = (text_loc[0] + 2, text_loc[1] + 1)
-                    cv2.putText(modified_image, chart_desc, shadow_loc, font_face, font_scale, (0, 0, 0),
-                                thickness=font_thickness, lineType=cv2.LINE_AA)
+                cv2.putText(modified_image, chart_desc, text_loc, font_face, font_scale, border_color,
+                            thickness=font_thickness, lineType=cv2.LINE_AA)
 
-                    cv2.putText(modified_image, chart_desc, text_loc, font_face, font_scale, border_color,
-                                thickness=font_thickness, lineType=cv2.LINE_AA)
+            cv2.rectangle(modified_image, (panel_node.x1, panel_node.y1), (panel_node.x2, panel_node.y2),
+                          border_color, thickness=2)
 
-                cv2.rectangle(modified_image, (panel_node.x1, panel_node.y1), (panel_node.x2, panel_node.y2),
-                              border_color, thickness=2)
-
-            # TODO: show here any relevant annotations on the modified image ...
-
-
-
-        # finally, resize ...
-        modified_image = cv2.resize(modified_image, (int(w * self.view_scale), int(h * self.view_scale)),
-                                    interpolation=cv2.INTER_NEAREST)
-
-        # replace/update image
-        self.img_main.set_image(modified_image, 0, 0, True, cv2.INTER_NEAREST)
-        if resized:
-            self.container_images.recalculate_size()
-
-    def update_view_scale(self, new_scale):
-        prev_scale = self.view_scale
-
-        if 0.25 <= new_scale <= 4.0:
-            self.view_scale = new_scale
-        else:
-            return
-
-        # keep previous offsets ...
-        scroll_offset_y = self.container_images.v_scroll.value if self.container_images.v_scroll.active else 0
-        scroll_offset_x = self.container_images.h_scroll.value if self.container_images.h_scroll.active else 0
-
-        prev_center_y = scroll_offset_y + self.container_images.height / 2
-        prev_center_x = scroll_offset_x + self.container_images.width / 2
-
-        # compute new scroll bar offsets
-        scale_factor = (new_scale / prev_scale)
-        new_off_y = prev_center_y * scale_factor - self.container_images.height / 2
-        new_off_x = prev_center_x * scale_factor - self.container_images.width / 2
-
-        # update view ....
-        self.update_current_view(True)
-
-        # set offsets
-        if self.container_images.v_scroll.active and 0 <= new_off_y <= self.container_images.v_scroll.max:
-            self.container_images.v_scroll.value = new_off_y
-        if self.container_images.h_scroll.active and 0 <= new_off_x <= self.container_images.h_scroll.max:
-            self.container_images.h_scroll.value = new_off_x
-
-        # update scale text ...
-        self.lbl_zoom.set_text("Zoom: " + str(int(round(self.view_scale * 100,0))) + "%")
+        # TODO: show here any relevant annotations on the modified image ...
 
     def btn_split_panel_horizontal_click(self, button):
         self.split_panel_operation = ChartImageAnnotator.SplitOperationYSplit
@@ -937,8 +764,6 @@ class ChartImageAnnotator(Screen):
             self.lbl_confirm_message.set_text("Discard unsaved changes?")
 
         self.btn_confirm_accept.visible = (self.container_confirm_buttons.visible and self.edition_mode != ChartImageAnnotator.ModeSelectPanelSplit)
-
-
 
     def img_main_mouse_button_down(self, img, pos, button):
         if self.edition_mode == ChartImageAnnotator.ModeSelectPanelSplit:

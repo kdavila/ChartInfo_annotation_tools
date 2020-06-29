@@ -10,10 +10,12 @@ from AM_CommonTools.interface.controls.screen_image import ScreenImage
 from AM_CommonTools.interface.controls.screen_canvas import ScreenCanvas
 from AM_CommonTools.interface.controls.screen_textlist import ScreenTextlist
 
+from ChartInfo.annotation.base_image_annotator import BaseImageAnnotator
+
 from ChartInfo.data.scatter_values import ScatterValues
 from ChartInfo.data.scatter_data import ScatterData
 
-class ScatterChartAnnotator(Screen):
+class ScatterChartAnnotator(BaseImageAnnotator):
     ModeNavigate = 0
     ModeNumberEdit = 1
     ModeSeriesSelect = 2
@@ -23,21 +25,21 @@ class ScatterChartAnnotator(Screen):
     ModeConfirmNumberOverwrite = 6
     ModeConfirmExit = 7
 
-    ViewModeRawData = 0
-    ViewModeGrayData = 1
-    ViewModeRawNoData = 2
-    ViewModeGrayNoData = 3
-
     DoubleClickMaxPointDistance = 5
 
-    def __init__(self, size, panel_image, panel_info, parent_screen):
-        Screen.__init__(self, "Scatter Chart Ground Truth Annotation Interface", size)
+    CrossHairs_0_90_180_270 = 0
+    CrossHairs_45_135_225_315 = 1
+    CrossHairs_30_150_270 = 2
+    CrossHairs_90_210_330 = 3
 
-        self.panel_image = panel_image
-        self.panel_gray = np.zeros(self.panel_image.shape, self.panel_image.dtype)
-        self.panel_gray[:, :, 0] = cv2.cvtColor(self.panel_image, cv2.COLOR_RGB2GRAY)
-        self.panel_gray[:, :, 1] = self.panel_gray[:, :, 0].copy()
-        self.panel_gray[:, :, 2] = self.panel_gray[:, :, 0].copy()
+    def __init__(self, size, panel_image, panel_info, parent_screen):
+        BaseImageAnnotator.__init__(self, "Scatter Chart Ground Truth Annotation Interface", size)
+
+        self.base_rgb_image = panel_image
+        self.base_gray_image = np.zeros(self.base_rgb_image.shape, self.base_rgb_image.dtype)
+        self.base_gray_image[:, :, 0] = cv2.cvtColor(self.base_rgb_image, cv2.COLOR_RGB2GRAY)
+        self.base_gray_image[:, :, 1] = self.base_gray_image[:, :, 0].copy()
+        self.base_gray_image[:, :, 2] = self.base_gray_image[:, :, 0].copy()
 
         self.panel_info = panel_info
 
@@ -55,6 +57,20 @@ class ScatterChartAnnotator(Screen):
         self.general_background = (30, 125, 150)
         self.text_color = (255, 255, 255)
 
+        self.mark_size = 50
+        self.crosshairs_type = ScatterChartAnnotator.CrossHairs_0_90_180_270
+
+        self.cc_num_labels = 0
+        self.cc_labels = None
+        self.cc_stats = None
+        self.cc_centroids = None
+        self.cc_zoom_size = 10
+        self.cc_hover_idx = 0
+        self.precompute_connected_components()
+        self.padded_base_rgb_image = np.zeros((self.base_rgb_image.shape[0] + self.cc_zoom_size * 2,
+                                               self.base_rgb_image.shape[1] + self.cc_zoom_size * 2, 3), np.uint8)
+        self.padded_base_rgb_image[self.cc_zoom_size:-self.cc_zoom_size, self.cc_zoom_size:-self.cc_zoom_size] = self.base_rgb_image.copy()
+
         self.elements.back_color = self.general_background
         self.edition_mode = None
 
@@ -63,21 +79,7 @@ class ScatterChartAnnotator(Screen):
         self.tempo_scatter_values = None
         self.tempo_canvas_name = None
 
-        self.view_mode = ScatterChartAnnotator.ViewModeRawData
-        self.view_scale = 1.0
-
         self.label_title = None
-
-        self.container_view_buttons = None
-        self.lbl_zoom = None
-        self.btn_zoom_reduce = None
-        self.btn_zoom_increase = None
-        self.btn_zoom_zero = None
-
-        self.btn_view_raw_data = None
-        self.btn_view_gray_data = None
-        self.btn_view_raw_clear = None
-        self.btn_view_gray_clear = None
 
         self.container_confirm_buttons = None
         self.lbl_confirm_message = None
@@ -107,6 +109,11 @@ class ScatterChartAnnotator(Screen):
 
         self.container_scatter_buttons = None
         self.lbl_scatter_title = None
+        self.lbl_scatter_cross_hairs = None
+        self.img_scatter_cross_hairs_0_90_180_270 = None
+        self.img_scatter_cross_hairs_45_135_225_315 = None
+        self.img_scatter_cross_hairs_30_150_270 = None
+        self.img_scatter_cross_hairs_90_210_330 = None
         self.lbl_scatter_name = None
         self.lbx_scatter_points = None
         self.btn_scatter_point_edit = None
@@ -115,10 +122,10 @@ class ScatterChartAnnotator(Screen):
         self.btn_scatter_return_accept = None
         self.btn_scatter_return_cancel = None
 
-        self.container_images = None
-        self.canvas_display = None
-        self.img_main = None
-        
+        self.container_preview_buttons = None
+        self.lbl_preview_title = None
+        self.img_preview = None
+
         self.create_controllers()
 
         # get the view ...
@@ -148,62 +155,8 @@ class ScatterChartAnnotator(Screen):
 
         # ===========================
         # View Options Panel
-        # View panel with view control buttons
-        self.container_view_buttons = ScreenContainer("container_view_buttons", (container_width, 160),
-                                                      back_color=self.general_background)
-        self.container_view_buttons.position = (self.width - self.container_view_buttons.width - 10, container_top)
-        self.elements.append(self.container_view_buttons)
-
-        # zoom ....
-        self.lbl_zoom = ScreenLabel("lbl_zoom", "Zoom: 100%", 21, 290, 1)
-        self.lbl_zoom.position = (5, 5)
-        self.lbl_zoom.set_background(self.general_background)
-        self.lbl_zoom.set_color(self.text_color)
-        self.container_view_buttons.append(self.lbl_zoom)
-
-        self.btn_zoom_reduce = ScreenButton("btn_zoom_reduce", "[ - ]", 21, 90)
-        self.btn_zoom_reduce.set_colors(button_text_color, button_back_color)
-        self.btn_zoom_reduce.position = (10, self.lbl_zoom.get_bottom() + 10)
-        self.btn_zoom_reduce.click_callback = self.btn_zoom_reduce_click
-        self.container_view_buttons.append(self.btn_zoom_reduce)
-
-        self.btn_zoom_increase = ScreenButton("btn_zoom_increase", "[ + ]", 21, 90)
-        self.btn_zoom_increase.set_colors(button_text_color, button_back_color)
-        self.btn_zoom_increase.position = (self.container_view_buttons.width - self.btn_zoom_increase.width - 10,
-                                           self.lbl_zoom.get_bottom() + 10)
-        self.btn_zoom_increase.click_callback = self.btn_zoom_increase_click
-        self.container_view_buttons.append(self.btn_zoom_increase)
-
-        self.btn_zoom_zero = ScreenButton("btn_zoom_zero", "100%", 21, 90)
-        self.btn_zoom_zero.set_colors(button_text_color, button_back_color)
-        self.btn_zoom_zero.position = ((self.container_view_buttons.width - self.btn_zoom_zero.width) / 2,
-                                       self.lbl_zoom.get_bottom() + 10)
-        self.btn_zoom_zero.click_callback = self.btn_zoom_zero_click
-        self.container_view_buttons.append(self.btn_zoom_zero)
-
-        self.btn_view_raw_data = ScreenButton("btn_view_raw_data", "RGB Data", 21, button_2_width)
-        self.btn_view_raw_data.set_colors(button_text_color, button_back_color)
-        self.btn_view_raw_data.position = (button_2_left, self.btn_zoom_zero.get_bottom() + 10)
-        self.btn_view_raw_data.click_callback = self.btn_view_raw_data_click
-        self.container_view_buttons.append(self.btn_view_raw_data)
-
-        self.btn_view_gray_data = ScreenButton("btn_view_gray", "Gray Data", 21, button_2_width)
-        self.btn_view_gray_data.set_colors(button_text_color, button_back_color)
-        self.btn_view_gray_data.position = (button_2_right, self.btn_zoom_zero.get_bottom() + 10)
-        self.btn_view_gray_data.click_callback = self.btn_view_gray_data_click
-        self.container_view_buttons.append(self.btn_view_gray_data)
-
-        self.btn_view_raw_clear = ScreenButton("btn_view_raw_clear", "RGB Clear", 21, button_2_width)
-        self.btn_view_raw_clear.set_colors(button_text_color, button_back_color)
-        self.btn_view_raw_clear.position = (button_2_left, self.btn_view_raw_data.get_bottom() + 10)
-        self.btn_view_raw_clear.click_callback = self.btn_view_raw_clear_click
-        self.container_view_buttons.append(self.btn_view_raw_clear)
-
-        self.btn_view_gray_clear = ScreenButton("btn_view_gray_clear", "Gray Clear", 21, button_2_width)
-        self.btn_view_gray_clear.set_colors(button_text_color, button_back_color)
-        self.btn_view_gray_clear.position = (button_2_right, self.btn_view_raw_data.get_bottom() + 10)
-        self.btn_view_gray_clear.click_callback = self.btn_view_gray_clear_click
-        self.container_view_buttons.append(self.btn_view_gray_clear)
+        self.create_image_annotator_controls(container_top, container_width, self.general_background, self.text_color,
+                                             button_text_color, button_back_color)
 
         # ===========================
         # confirmation panel
@@ -356,7 +309,7 @@ class ScatterChartAnnotator(Screen):
 
         # ==============================
         # line annotation options
-        self.container_scatter_buttons = ScreenContainer("container_scatter_buttons", (container_width, 450),
+        self.container_scatter_buttons = ScreenContainer("container_scatter_buttons", (container_width, 550),
                                                          back_color=darker_background)
         self.container_scatter_buttons.position = (self.container_view_buttons.get_left(),
                                                    self.container_view_buttons.get_bottom() + 20)
@@ -368,8 +321,55 @@ class ScatterChartAnnotator(Screen):
         self.lbl_scatter_title.set_color(self.text_color)
         self.container_scatter_buttons.append(self.lbl_scatter_title)
 
+        self.lbl_scatter_cross_hairs = ScreenLabel("lbl_scatter_cross_hairs", "Available Crosshairs", 18, 290, 1)
+        self.lbl_scatter_cross_hairs.position = (5, self.lbl_scatter_title.get_bottom() + 20)
+        self.lbl_scatter_cross_hairs.set_background(darker_background)
+        self.lbl_scatter_cross_hairs.set_color(self.text_color)
+        self.container_scatter_buttons.append(self.lbl_scatter_cross_hairs)
+
+        cross_hair_size = 61
+
+        tempo_blank = np.zeros((cross_hair_size, cross_hair_size, 3), np.uint8)
+        tempo_blank[:, :, :] = 255
+
+        angles = self.get_crosshair_angles(ScatterChartAnnotator.CrossHairs_0_90_180_270)
+        cross_hair_img = self.create_cross_hairs_image(cross_hair_size, angles, (255, 0, 0), (255, 255, 255))
+        self.img_scatter_cross_hairs_0_90_180_270 = ScreenImage("img_scatter_cross_hairs_0_90_180_270", cross_hair_img,
+                                                                0, 0, True, cv2.INTER_NEAREST)
+        self.img_scatter_cross_hairs_0_90_180_270.position = (int(container_width * (3 / 18) - cross_hair_size / 2),
+                                                              self.lbl_scatter_cross_hairs.get_bottom() + 10)
+        self.img_scatter_cross_hairs_0_90_180_270.mouse_button_down_callback = self.img_scatter_cross_hairs_mouse_button_down
+        self.container_scatter_buttons.append(self.img_scatter_cross_hairs_0_90_180_270)
+
+        angles = self.get_crosshair_angles(ScatterChartAnnotator.CrossHairs_45_135_225_315)
+        cross_hair_img = self.create_cross_hairs_image(cross_hair_size, angles, (255, 0, 0), (255, 255, 255))
+        self.img_scatter_cross_hairs_45_135_225_315 = ScreenImage("img_scatter_cross_hairs_45_135_225_315",
+                                                                  cross_hair_img, 0, 0, True, cv2.INTER_NEAREST)
+        self.img_scatter_cross_hairs_45_135_225_315.position = (int(container_width * (7 / 18) - cross_hair_size / 2),
+                                                                self.lbl_scatter_cross_hairs.get_bottom() + 10)
+        self.img_scatter_cross_hairs_45_135_225_315.mouse_button_down_callback = self.img_scatter_cross_hairs_mouse_button_down
+        self.container_scatter_buttons.append(self.img_scatter_cross_hairs_45_135_225_315)
+
+        angles = self.get_crosshair_angles(ScatterChartAnnotator.CrossHairs_30_150_270)
+        cross_hair_img = self.create_cross_hairs_image(cross_hair_size, angles, (255, 0, 0), (255, 255, 255))
+        self.img_scatter_cross_hairs_30_150_270 = ScreenImage("img_scatter_cross_hairs_30_150_270", cross_hair_img,
+                                                              0, 0, True, cv2.INTER_NEAREST)
+        self.img_scatter_cross_hairs_30_150_270.position = (int(container_width * (11 / 18) - cross_hair_size / 2),
+                                                            self.lbl_scatter_cross_hairs.get_bottom() + 10)
+        self.img_scatter_cross_hairs_30_150_270.mouse_button_down_callback = self.img_scatter_cross_hairs_mouse_button_down
+        self.container_scatter_buttons.append(self.img_scatter_cross_hairs_30_150_270)
+
+        angles = self.get_crosshair_angles(ScatterChartAnnotator.CrossHairs_90_210_330)
+        cross_hair_img = self.create_cross_hairs_image(cross_hair_size, angles, (255, 0, 0), (255, 255, 255))
+        self.img_scatter_cross_hairs_90_210_330 = ScreenImage("img_scatter_cross_hairs_90_210_330", cross_hair_img,
+                                                              0, 0, True, cv2.INTER_NEAREST)
+        self.img_scatter_cross_hairs_90_210_330.position = (int(container_width * (15 / 18) - cross_hair_size / 2),
+                                                            self.lbl_scatter_cross_hairs.get_bottom() + 10)
+        self.img_scatter_cross_hairs_90_210_330.mouse_button_down_callback = self.img_scatter_cross_hairs_mouse_button_down
+        self.container_scatter_buttons.append(self.img_scatter_cross_hairs_90_210_330)
+
         self.lbl_scatter_name = ScreenLabel("lbl_scatter_name", "[Data series]", 18, 290, 1)
-        self.lbl_scatter_name.position = (5, self.lbl_scatter_name.get_bottom() + 20)
+        self.lbl_scatter_name.position = (5, self.img_scatter_cross_hairs_0_90_180_270.get_bottom() + 20)
         self.lbl_scatter_name.set_background(darker_background)
         self.lbl_scatter_name.set_color(self.text_color)
         self.container_scatter_buttons.append(self.lbl_scatter_name)
@@ -416,169 +416,94 @@ class ScatterChartAnnotator(Screen):
         # ======================================
         # visuals
         # ===========================
-        # Image
 
-        image_width = self.width - self.container_view_buttons.width - 30
-        image_height = self.height - container_top - 10
-        self.container_images = ScreenContainer("container_images", (image_width, image_height), back_color=(0, 0, 0))
-        self.container_images.position = (10, container_top)
-        self.elements.append(self.container_images)
+        self.img_main.mouse_motion_callback = self.img_main_mouse_motion
 
-        # ... image objects ...
-        tempo_blank = np.zeros((50, 50, 3), np.uint8)
+        click_mark_points = np.array([[0, self.mark_size], [self.mark_size * 2, self.mark_size],
+                                      [self.mark_size, self.mark_size], [self.mark_size, 0],
+                                      [self.mark_size, self.mark_size * 2]], dtype=np.float64)
+        self.canvas_select.add_polyline_element("click_mark", click_mark_points)
+        self.canvas_select.elements["click_mark"].visible = False
+
+        # -----------
+        # ... preview of right click on add mode  ...
+        self.container_preview_buttons = ScreenContainer("container_preview_buttons", (container_width, 180),
+                                                         back_color=darker_background)
+        self.container_preview_buttons.position = (self.container_confirm_buttons.get_left(),
+                                                   self.container_confirm_buttons.get_bottom() + 20)
+        self.elements.append(self.container_preview_buttons)
+        self.container_preview_buttons.visible = False
+
+        self.lbl_preview_title = ScreenLabel("lbl_preview_title", "Right Click to add this Point", 25, 290, 1)
+        self.lbl_preview_title.position = (5, 5)
+        self.lbl_preview_title.set_background(darker_background)
+        self.lbl_preview_title.set_color(self.text_color)
+        self.container_preview_buttons.append(self.lbl_preview_title)
+
+        tempo_blank = np.zeros((105, 105, 3), np.uint8)
         tempo_blank[:, :, :] = 255
-        self.img_main = ScreenImage("img_main", tempo_blank, 0, 0, True, cv2.INTER_NEAREST)
-        self.img_main.position = (0, 0)
-        self.img_main.mouse_button_down_callback = self.img_mouse_down
-        self.img_main.double_click_callback = self.img_mouse_double_click
-        self.container_images.append(self.img_main)
-
-        self.canvas_display = ScreenCanvas("canvas_display", 100, 100)
-        self.canvas_display.position = (0, 0)
-        self.canvas_display.locked = True
-        self.container_images.append(self.canvas_display)
+        self.img_preview = ScreenImage("img_preview", tempo_blank, 105, 105, True, cv2.INTER_NEAREST)
+        self.img_preview.position = (int(container_width / 2 - 50), self.lbl_preview_title.get_bottom() + 20)
+        self.container_preview_buttons.append(self.img_preview)
 
         self.prepare_number_controls()
 
         self.set_editor_mode(ScatterChartAnnotator.ModeNavigate)
 
+    def precompute_connected_components(self):
+        otsu_t, binarized = cv2.threshold(self.base_gray_image[:, :, 0], 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        inv_binarized = 255 - binarized
 
-    def btn_zoom_reduce_click(self, button):
-        self.update_view_scale(self.view_scale - 0.25)
+        # get the CC on the raw binary
+        num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(binarized)
+        # get the CC on the inverted binary
+        inv_num_labels, inv_labels, inv_stats, inv_centroids = cv2.connectedComponentsWithStats(inv_binarized)
 
-    def btn_zoom_increase_click(self, button):
-        self.update_view_scale(self.view_scale + 0.25)
+        self.cc_num_labels = num_labels + inv_num_labels
+        self.cc_labels = labels
+        self.cc_labels[inv_labels > 0] = inv_labels[inv_labels > 0] + num_labels
+        self.cc_stats = np.vstack([stats, inv_stats])
+        self.cc_centroids = np.vstack([centroids, inv_centroids])
 
-    def btn_zoom_zero_click(self, button):
-        self.update_view_scale(1.0)
+    def get_crosshair_angles(self, crosshair_type):
+        if crosshair_type == ScatterChartAnnotator.CrossHairs_0_90_180_270:
+            return [0, np.pi / 2.0, np.pi, np.pi * 3 / 2.0]
+        elif crosshair_type == ScatterChartAnnotator.CrossHairs_45_135_225_315:
+            return [np.pi / 4.0, np.pi * 3.0 / 4.0, np.pi * 5.0 / 4.0, np.pi * 7.0 / 4.0]
+        elif crosshair_type == ScatterChartAnnotator.CrossHairs_30_150_270:
+            return [np.pi * 1.0 / 6.0, np.pi * 5.0 / 6.0, np.pi * 3.0 / 2.0]
+        elif crosshair_type == ScatterChartAnnotator.CrossHairs_90_210_330:
+            return [np.pi / 2.0, np.pi * 7.0 / 6.0, np.pi * 11.0 / 6.0]
 
-    def btn_view_raw_data_click(self, button):
-        self.view_mode = ScatterChartAnnotator.ViewModeRawData
-        self.update_current_view()
+        return []
 
-    def btn_view_gray_data_click(self, button):
-        self.view_mode = ScatterChartAnnotator.ViewModeGrayData
-        self.update_current_view()
+    def create_cross_hairs_image(self, size, angles, main_color, bg_color):
+        image = np.zeros((size, size, 3), dtype=np.uint8) * 255
+        image[:, :] = bg_color
+        radius = int(size / 2)
 
-    def btn_view_raw_clear_click(self, button):
-        self.view_mode = ScatterChartAnnotator.ViewModeRawNoData
-        self.update_current_view()
+        # assume angle is on radians
+        for angle in angles:
+            p1 = (radius, radius)
+            p2 = (radius + int(np.cos(angle) * radius), radius -int(np.sin(angle) * radius))
 
-    def btn_view_gray_clear_click(self, button):
-        self.view_mode = ScatterChartAnnotator.ViewModeGrayNoData
-        self.update_current_view()
+            cv2.line(image, p1, p2, main_color)
 
-    def update_view_scale(self, new_scale):
-        prev_scale = self.view_scale
+        return image
 
-        if 0.25 <= new_scale <= 4.0:
-            self.view_scale = new_scale
-        else:
-            return
+    def custom_view_update(self, modified_image):
+        x1, y1, x2, y2 = self.panel_info.axes.bounding_box
+        x1 = int(x1)
+        y1 = int(y1)
+        x2 = int(x2)
+        y2 = int(y2)
 
-        # keep previous offsets ...
-        scroll_offset_y = self.container_images.v_scroll.value if self.container_images.v_scroll.active else 0
-        scroll_offset_x = self.container_images.h_scroll.value if self.container_images.h_scroll.active else 0
-
-        prev_center_y = scroll_offset_y + self.container_images.height / 2
-        prev_center_x = scroll_offset_x + self.container_images.width / 2
-
-        # compute new scroll box offsets
-        scale_factor = (new_scale / prev_scale)
-        new_off_y = prev_center_y * scale_factor - self.container_images.height / 2
-        new_off_x = prev_center_x * scale_factor - self.container_images.width / 2
-
-        # update view ....
-        self.update_current_view(True)
-
-        # set offsets
-        if self.container_images.v_scroll.active and 0 <= new_off_y <= self.container_images.v_scroll.max:
-            self.container_images.v_scroll.value = new_off_y
-        if self.container_images.h_scroll.active and 0 <= new_off_x <= self.container_images.h_scroll.max:
-            self.container_images.h_scroll.value = new_off_x
-
-        # re-scale objects from both canvas
-        # ... display ...
-        for polygon_name in self.canvas_display.elements:
-            display_polygon = self.canvas_display.elements[polygon_name]
-            display_polygon.points *= scale_factor
-
-        # update scale text ...
-        self.lbl_zoom.set_text("Zoom: " + str(int(round(self.view_scale * 100, 0))) + "%")
-
-    def update_current_view(self, resized=False):
-        if self.view_mode in [ScatterChartAnnotator.ViewModeGrayData, ScatterChartAnnotator.ViewModeGrayNoData]:
-            # gray scale mode
-            base_image = self.panel_gray
-        else:
-            base_image = self.panel_image
-
-        h, w, c = base_image.shape
-
-        modified_image = base_image.copy()
-
-        if self.view_mode in [ScatterChartAnnotator.ViewModeRawData, ScatterChartAnnotator.ViewModeGrayData]:
-            # (for example, draw the polygons)
-            self.canvas_display.visible = True
-
-            x1, y1, x2, y2 = self.panel_info.axes.bounding_box
-            x1 = int(x1)
-            y1 = int(y1)
-            x2 = int(x2)
-            y2 = int(y2)
-
-            # axes lines
-            cv2.line(modified_image, (x1, y1), (x1, y2), (0, 255, 0), thickness=1)  # y = green
-            cv2.line(modified_image, (x1, y2), (x2, y2), (0, 0, 255), thickness=1)  # x = blue
-            # close the data area rectangle ?
-            # cv2.line(modified_image, (x2, y1), (x2, y2), (0, 128, 0), thickness=1)
-            # cv2.line(modified_image, (x1, y1), (x2, y1), (0, 0, 128), thickness=1)
-            """
-            # check which data series will be drawn ...
-            if self.edition_mode in [ScatterChartAnnotator.ModeSeriesEdit,
-                                     ScatterChartAnnotator.ModePointAdd,
-                                     ScatterChartAnnotator.ModePointEdit]:
-                # Only draw the line being edited ... based on its temporary changes ...
-                points_to_draw = [self.tempo_scatter_values]
-            else:
-                # draw everything ...
-                points_to_draw = self.data.scatter_values
-
-            # for each line to drawn ...
-            for idx, scatter_values in enumerate(points_to_draw):
-                line_color = self.canvas_display.colors[idx % len(self.canvas_display.colors)]
-
-                for p_idx in range(len(scatter_values.points)):
-                    # transform current point from relative space to absolute pixel space
-                    c_x, c_y = scatter_values.points[p_idx]
-                    c_x += x1
-                    c_y = y2 - c_y
-                    current_point = (int(round(c_x)), int(round(c_y)))
-
-                    # Draw the points as small circles ...
-                    if (self.edition_mode == ScatterChartAnnotator.ModeSeriesEdit and
-                        self.lbx_scatter_points.selected_option_value is not None and
-                        int(self.lbx_scatter_points.selected_option_value) == p_idx):
-                        # empty large circle for selected option
-                        cv2.circle(modified_image, current_point, 5, line_color, thickness=2)
-                    else:
-                        # filled small circle
-                        cv2.circle(modified_image, current_point, 3, line_color, thickness=-1)
-            """
-        else:
-            self.canvas_display.visible = False
-
-        # finally, resize ...
-        modified_image = cv2.resize(modified_image, (int(w * self.view_scale), int(h * self.view_scale)),
-                                    interpolation=cv2.INTER_NEAREST)
-
-        # update canvas size ....
-        self.canvas_display.height, self.canvas_display.width, _ = modified_image.shape
-
-        # replace/update image
-        self.img_main.set_image(modified_image, 0, 0, True, cv2.INTER_NEAREST)
-        if resized:
-            self.container_images.recalculate_size()
+        # axes lines
+        cv2.line(modified_image, (x1, y1), (x1, y2), (0, 255, 0), thickness=1)  # y = green
+        cv2.line(modified_image, (x1, y2), (x2, y2), (0, 0, 255), thickness=1)  # x = blue
+        # close the data area rectangle ?
+        # cv2.line(modified_image, (x2, y1), (x2, y2), (0, 128, 0), thickness=1)
+        # cv2.line(modified_image, (x1, y1), (x2, y1), (0, 0, 128), thickness=1)
 
     def btn_confirm_cancel_click(self, button):
         if self.edition_mode in [ScatterChartAnnotator.ModeConfirmExit]:
@@ -591,7 +516,7 @@ class ScatterChartAnnotator(Screen):
         elif self.edition_mode in [ScatterChartAnnotator.ModePointEdit]:
             # copy data from Canvas to the structure ....
             canvas_points = self.canvas_display.elements[self.tempo_canvas_name].points
-            print(self.tempo_scatter_values.points)
+            # print(self.tempo_scatter_values.points)
             for point_idx, (px, py) in enumerate(canvas_points):
                 # like clicks, canvas uses visual position,
                 # convert coordinates from the canvas to image coordinate
@@ -599,7 +524,7 @@ class ScatterChartAnnotator(Screen):
                 rel_x, rel_y = self.from_pos_to_rel_click((px, py))
                 # set new position for this point ...
                 self.tempo_scatter_values.set_point(point_idx, rel_x, rel_y)
-            print(self.tempo_scatter_values.points)
+            # print(self.tempo_scatter_values.points)
             # lock the canvas ...
             self.canvas_display.locked = True
             # return to series edition mode ...
@@ -695,21 +620,29 @@ class ScatterChartAnnotator(Screen):
 
         return rel_x, rel_y
 
-    def img_mouse_down(self, img_object, pos, button):
-        if button == 1:
-            if self.edition_mode in [ScatterChartAnnotator.ModePointAdd, ScatterChartAnnotator.ModePointEdit]:
+    def img_main_mouse_button_down(self, img_object, pos, button):
+        if self.edition_mode == ScatterChartAnnotator.ModePointAdd and button in [1, 3]:
+            # Add the new point
+            if button == 1:
                 # click pos ...
                 rel_x, rel_y = self.from_pos_to_rel_click(pos)
+            elif button == 3 and self.cc_hover_idx is not None:
+                # use hover CC location instead of actual click location
+                rel_x, rel_y = self.cc_centroids[self.cc_hover_idx]
+                x1, y1, x2, y2 = self.panel_info.axes.bounding_box
+                rel_x = rel_x - x1
+                rel_y = y2 - rel_y
+            else:
+                return
 
-                if self.edition_mode == ScatterChartAnnotator.ModePointAdd:
-                    # Add the new point
-                    self.tempo_scatter_values.add_point(rel_x, rel_y)
-                    # update canvas ....
-                    ps_points = self.scatter_points_to_canvas_points(self.tempo_scatter_values.points)
-                    self.canvas_display.update_point_set_element(self.tempo_canvas_name, ps_points, True)
-                    # .. and stay on current state until cancel is pressed.
+            # exact click location
+            self.tempo_scatter_values.add_point(rel_x, rel_y)
+            # update canvas ....
+            ps_points = self.scatter_points_to_canvas_points(self.tempo_scatter_values.points)
+            self.canvas_display.update_point_set_element(self.tempo_canvas_name, ps_points, True)
+            # .. and stay on current state until cancel is pressed.
 
-                self.update_current_view()
+        self.update_current_view()
 
     def prepare_number_controls(self):
         n_series = self.data.total_series()
@@ -766,6 +699,7 @@ class ScatterChartAnnotator(Screen):
         self.container_number_buttons.visible = (self.edition_mode == ScatterChartAnnotator.ModeNumberEdit)
         self.container_data_buttons.visible = (self.edition_mode == ScatterChartAnnotator.ModeSeriesSelect)
         self.container_scatter_buttons.visible = (self.edition_mode == ScatterChartAnnotator.ModeSeriesEdit)
+        self.container_preview_buttons.visible = (self.edition_mode == ScatterChartAnnotator.ModePointAdd)
 
         # Confirm panel and buttons  ...
         self.container_confirm_buttons.visible = self.edition_mode in [ScatterChartAnnotator.ModeConfirmNumberOverwrite,
@@ -881,7 +815,7 @@ class ScatterChartAnnotator(Screen):
         pass
         # self.update_current_view(False)
 
-    def img_mouse_double_click(self, img, position, button):
+    def img_main_mouse_double_click(self, img, position, button):
         if self.edition_mode == ScatterChartAnnotator.ModeSeriesEdit:
             # click relative position
             rel_x, rel_y = self.from_pos_to_rel_click(position)
@@ -910,3 +844,73 @@ class ScatterChartAnnotator(Screen):
                 # right click ... delete ...
                 if distance < ScatterChartAnnotator.DoubleClickMaxPointDistance:
                     self.delete_tempo_scatter_point(point_idx)
+
+    def img_main_mouse_motion(self, screen_img, pos, rel, buttons):
+        if self.edition_mode in [ScatterChartAnnotator.ModeSeriesEdit, ScatterChartAnnotator.ModePointAdd]:
+            mouse_x, mouse_y = pos
+            img_x = int(mouse_x / self.view_scale)
+            img_y = int(mouse_y / self.view_scale)
+
+            angles = self.get_crosshair_angles(self.crosshairs_type)
+            main_points = [(mouse_x + np.cos(angle) * self.mark_size,
+                            mouse_y - np.sin(angle) * self.mark_size) for angle in angles]
+
+            if self.crosshairs_type in [ScatterChartAnnotator.CrossHairs_30_150_270,
+                                        ScatterChartAnnotator.CrossHairs_90_210_330]:
+                # 3 lines: (Y) or inverted Y
+                click_mark_points = np.array([main_points[0], [mouse_x, mouse_y],
+                                              main_points[1], [mouse_x, mouse_y],
+                                              main_points[2]])
+            else:
+                # default ... two lines with point in the center: (+) or (x)
+                click_mark_points = np.array([main_points[0], main_points[2], [mouse_x, mouse_y],
+                                              main_points[1], main_points[3]])
+
+            self.canvas_select.update_polyline_element("click_mark", click_mark_points, True)
+
+            if self.edition_mode == ScatterChartAnnotator.ModePointAdd:
+                valid_cc = True
+                if (img_y < 0 or img_y >= self.cc_labels.shape[0]) or (img_x < 0 or img_x >= self.cc_labels.shape[1]):
+                    valid_cc = False
+                else:
+                    cc_idx = self.cc_labels[img_y, img_x]
+                    cc_center_x, cc_center_y = self.cc_centroids[cc_idx]
+
+                    # print((self.cc_stats[cc_idx, cv2.CC_STAT_AREA], np.power(self.cc_zoom_size * 4, 2)))
+                    if self.cc_stats[cc_idx, cv2.CC_STAT_AREA] < np.power(self.cc_zoom_size * 4, 2):
+                        cut_min_x = int(cc_center_x)
+                        cut_max_x = int(cc_center_x + self.cc_zoom_size * 2 + 1)
+                        cut_min_y = int(cc_center_y)
+                        cut_max_y =int(cc_center_y + self.cc_zoom_size * 2 + 1)
+                        zoom_cut = self.padded_base_rgb_image[cut_min_y:cut_max_y, cut_min_x:cut_max_x].copy()
+
+                        zoom_cut[self.cc_zoom_size, :] = (255, 0, 0)
+                        zoom_cut[:, self.cc_zoom_size] = (255, 0, 0)
+
+                        self.cc_hover_idx = cc_idx
+                    else:
+                        valid_cc = False
+
+                if not valid_cc:
+                    zoom_cut = np.zeros((self.cc_zoom_size * 2 + 1, self.cc_zoom_size * 2 + 1, 3), dtype=np.uint8)
+                    self.cc_hover_idx = None
+
+                preview_size = (self.cc_zoom_size * 2 + 1) * 5
+                self.img_preview.set_image(zoom_cut, preview_size, preview_size)
+
+                # print("---")
+                # self.img_preview
+                # print(self.cc_labels[img_y, img_x])
+                # print(self.cc_centroids[self.cc_labels[img_y, img_x]])
+        else:
+            self.canvas_select.elements["click_mark"].visible = False
+
+    def img_scatter_cross_hairs_mouse_button_down(self, img_object, pos, button):
+        if img_object.name == "img_scatter_cross_hairs_0_90_180_270":
+            self.crosshairs_type = ScatterChartAnnotator.CrossHairs_0_90_180_270
+        elif img_object.name == "img_scatter_cross_hairs_45_135_225_315":
+            self.crosshairs_type = ScatterChartAnnotator.CrossHairs_45_135_225_315
+        elif img_object.name == "img_scatter_cross_hairs_30_150_270":
+            self.crosshairs_type = ScatterChartAnnotator.CrossHairs_30_150_270
+        elif img_object.name == "img_scatter_cross_hairs_90_210_330":
+            self.crosshairs_type = ScatterChartAnnotator.CrossHairs_90_210_330

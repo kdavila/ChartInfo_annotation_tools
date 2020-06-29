@@ -6,8 +6,9 @@ import numpy as np
 from .text_info import TextInfo
 
 class LegendInfo:
-    OrientationHorizontal = 0
-    OrientationVertical = 1
+    OrientationMixed = 0
+    OrientationHorizontal = 1
+    OrientationVertical = 2
 
     def __init__(self, text_labels):
         # of class TextInfo
@@ -45,6 +46,36 @@ class LegendInfo:
             # by default ...
             return LegendInfo.OrientationVertical
 
+        # afterwards the following test only one of these can remain true
+        all_overlap_on_x = True
+        all_overlap_on_y = True
+        # do all pai-rwaise range comparisons
+        for idx_1, text_1 in enumerate(self.text_labels[:-1]):
+            txt_1_min_x, txt_1_min_y, txt_1_max_x, txt_1_max_y = text_1.get_axis_aligned_rectangle()
+
+            for text_2 in self.text_labels[idx_1 + 1:]:
+                txt_2_min_x, txt_2_min_y, txt_2_max_x, txt_2_max_y = text_2.get_axis_aligned_rectangle()
+
+                # do the overlap test ...
+                # ... on x ...
+                if not (txt_1_min_x < txt_2_max_x and txt_2_min_x < txt_1_max_x):
+                    all_overlap_on_x = False
+                # ... on y ...
+                if not (txt_1_min_y < txt_2_max_y and txt_2_min_y < txt_1_max_y):
+                    all_overlap_on_y = False
+
+                # it only takes one counter example to conclude the test ...
+                if not (all_overlap_on_x or all_overlap_on_y):
+                    break
+
+        if all_overlap_on_x:
+            return LegendInfo.OrientationVertical
+        elif all_overlap_on_y:
+            return LegendInfo.OrientationHorizontal
+        else:
+            return LegendInfo.OrientationMixed
+
+        """
         all_x_dists = []
         all_y_dists = []
         for idx_1, text_1 in enumerate(self.text_labels):
@@ -63,6 +94,7 @@ class LegendInfo:
         else:
             # larger horizontal distances ...
             return LegendInfo.OrientationHorizontal
+        """
 
     def get_data_series(self):
         # first, determine the orientation of the text labels ...

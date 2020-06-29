@@ -1,6 +1,7 @@
 
 import numpy as np
 import cv2
+from munkres import Munkres
 
 from shapely.geometry import Polygon
 
@@ -12,34 +13,34 @@ from AM_CommonTools.interface.controls.screen_image import ScreenImage
 from AM_CommonTools.interface.controls.screen_canvas import ScreenCanvas
 from AM_CommonTools.interface.controls.screen_textlist import ScreenTextlist
 
+from ChartInfo.annotation.base_image_annotator import BaseImageAnnotator
+
 from ChartInfo.data.text_info import TextInfo
 from ChartInfo.data.legend_info import LegendInfo
 
-class ChartLegendAnnotator(Screen):
+
+class ChartLegendAnnotator(BaseImageAnnotator):
     ModeNavigate = 0
     ModeRectangleSelect = 1
     ModeRectangleEdit = 2
     ModeConfirmExit = 3
 
-    ViewModeRawData = 0
-    ViewModeGrayData = 1
-    ViewModeRawNoData = 2
-    ViewModeGrayNoData = 3
-
     def __init__(self, size, panel_image, panel_info, parent_screen):
-        Screen.__init__(self, "Chart Legend Ground Truth Annotation Interface", size)
+        BaseImageAnnotator.__init__(self, "Chart Legend Ground Truth Annotation Interface", size)
 
-        self.panel_image = panel_image
-        self.panel_gray = np.zeros(self.panel_image.shape, self.panel_image.dtype)
-        self.panel_gray[:, :, 0] = cv2.cvtColor(self.panel_image, cv2.COLOR_RGB2GRAY)
-        self.panel_gray[:, :, 1] = self.panel_gray[:, :, 0].copy()
-        self.panel_gray[:, :, 2] = self.panel_gray[:, :, 0].copy()
+        self.base_rgb_image = panel_image
+        self.base_gray_image = np.zeros(self.base_rgb_image.shape, self.base_rgb_image.dtype)
+        self.base_gray_image[:, :, 0] = cv2.cvtColor(self.base_rgb_image, cv2.COLOR_RGB2GRAY)
+        self.base_gray_image[:, :, 1] = self.base_gray_image[:, :, 0].copy()
+        self.base_gray_image[:, :, 2] = self.base_gray_image[:, :, 0].copy()
 
         self.panel_info = panel_info
 
         if self.panel_info.legend is None:
             # create a new legend info
             self.legend = LegendInfo(self.panel_info.get_all_text(TextInfo.TypeLegendLabel))
+            # try to automatically find legend elements ...
+            self.estimate_legend_boxes()
             self.data_changed = True
         else:
             # make a copy
@@ -55,21 +56,8 @@ class ChartLegendAnnotator(Screen):
 
         self.edition_mode = None
         self.tempo_text_id = None
-        self.view_mode = ChartLegendAnnotator.ViewModeRawData
-        self.view_scale = 1.0
 
         self.label_title = None
-
-        self.container_view_buttons = None
-        self.lbl_zoom = None
-        self.btn_zoom_reduce = None
-        self.btn_zoom_increase = None
-        self.btn_zoom_zero = None
-
-        self.btn_view_raw_data = None
-        self.btn_view_gray_data = None
-        self.btn_view_raw_clear = None
-        self.btn_view_gray_clear = None
 
         self.container_confirm_buttons = None
         self.lbl_confirm_message = None
@@ -84,15 +72,176 @@ class ChartLegendAnnotator(Screen):
         self.btn_return_accept = None
         self.btn_return_cancel = None
 
-        self.container_images = None
-        self.canvas_select = None
-        self.canvas_display = None
-        self.img_main = None
-
         self.create_controllers()
 
         # get the view ...
         self.update_current_view(True)
+
+    def get_best_assignments(self, cost_matrix, n_ccs, max_distance):
+        # use the Munkres algorithm to find the optimal assignments
+        m = Munkres()
+        assignments = m.compute(cost_matrix.copy())
+
+        # validate the assignments
+        valid_assignments = []
+        raw_cost = 0
+        valid_cost = 0
+        for text_idx, cc_idx in assignments:
+            # check if the assignment is valid ...
+            if (text_idx < len(self.legend.text_labels) and cc_idx < n_ccs and
+                cost_matrix[text_idx, cc_idx] < max_distance):
+                # valid ... add to list of assignments ....
+                valid_assignments.append((text_idx, cc_idx))
+                # add to valid cost ....
+                valid_cost += cost_matrix[text_idx, cc_idx]
+
+            # add to raw cost
+            raw_cost += cost_matrix[text_idx, cc_idx]
+
+        return raw_cost, valid_cost, valid_assignments
+
+    def get_intervals_IOU(self, int_1_min, int_1_max, int_2_min, int_2_max):
+        if int_1_min <= int_2_max and int_2_min <= int_1_max:
+            # intersection ...
+            int_min = max(int_1_min, int_2_min)
+            int_max = min(int_1_max, int_2_max)
+            int_size = int_max - int_min
+            # union ...
+            union_min = min(int_1_min, int_2_min)
+            union_max = max(int_1_max, int_2_max)
+            union_size = union_max - union_min
+
+            # print((int_1_min, int_1_max, int_2_min, int_2_max, int_min, int_max, int_size, union_size))
+
+            return int_size / union_size
+        else:
+            # no intersection ...
+            return 0.0
+
+    def estimate_legend_boxes(self):
+        legend_orientation = self.legend.get_legend_orientation()
+        if legend_orientation == LegendInfo.OrientationMixed:
+            # hard to auto-validate, do not create an estimation
+            return
+
+        otsu_t, binarized = cv2.threshold(self.base_gray_image[:, :, 0], 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        binarized = 255 - binarized
+
+        # subtract the all text  ...
+        for txt_label in self.panel_info.get_all_text():
+            min_x, min_y, max_x, max_y = txt_label.get_axis_aligned_rectangle()
+
+            binarized[int(min_y):int(max_y), int(min_x):int(max_x)] = 0
+
+        # get the CC ...
+        num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(binarized)
+        # ... get CC stats ...
+        cc_boxes = np.zeros((num_labels - 1, 4), dtype=np.int32)
+        for cc_idx in range(1, num_labels):
+            cc_min_x = stats[cc_idx, cv2.CC_STAT_LEFT]
+            cc_max_x = cc_min_x + stats[cc_idx, cv2.CC_STAT_WIDTH]
+            cc_min_y = stats[cc_idx, cv2.CC_STAT_TOP]
+            cc_max_y = cc_min_y + stats[cc_idx, cv2.CC_STAT_HEIGHT]
+
+            cc_boxes[cc_idx - 1] = cc_min_x, cc_max_x, cc_min_y, cc_max_y
+
+        # find distances between each CC candidate and each legend text ...
+        align_size = max(cc_boxes.shape[0], len(self.legend.text_labels))
+        left_distances = np.zeros((align_size, align_size), dtype=np.int32)
+        right_distances = np.zeros((align_size, align_size), dtype=np.int32)
+        # max distance is the maximum width
+        max_distance = labels.shape[1]
+
+        left_distances[:, :] = max_distance
+        right_distances[:, :] = max_distance
+        # ... for each text label in the legend
+        for text_idx, txt_label in enumerate(self.legend.text_labels):
+            l_min_x, l_min_y, l_max_x, l_max_y = txt_label.get_axis_aligned_rectangle()
+
+            # .... for each CC in the binarized image
+            for cc_idx, (cc_min_x, cc_max_x, cc_min_y, cc_max_y) in enumerate(cc_boxes):
+                # check area, confirm that this is not a large CC overlapping in range with the text region
+                text_region = (l_max_x - l_min_x + 1) * (l_max_y - l_min_y + 1)
+                cc_region = (cc_max_x - cc_min_x + 1) * (cc_max_y - cc_min_y + 1)
+                if cc_region < text_region * 2:
+                    # they should overlap vertically ...
+                    if cc_min_y <= l_max_y and l_min_y <= cc_max_y:
+                        # both legend text and the CC intersect vertically, check distance
+                        if cc_min_x <= l_max_x and l_min_x <= cc_max_x:
+                            # they also intersect horizontally
+                            if cc_min_x < l_min_x:
+                                # CC is the left-most
+                                left_distances[text_idx, cc_idx] = 0
+                            else:
+                                # CC is the right-most
+                                right_distances[text_idx, cc_idx] = 0
+                        else:
+                            # no horizontal intersection, find distance between edges
+                            if cc_max_x < l_min_x:
+                                # CC is on the left side of this legend element ...
+                                left_distances[text_idx, cc_idx] = l_min_x - cc_max_x
+                            else:
+                                # CC is on the right side of this legend element ...
+                                right_distances[text_idx, cc_idx] = cc_min_x - l_max_x
+                    else:
+                        # no vertical overlap, most legends should be connected to elements on the left or right
+                        pass
+                else:
+                    # the CC is too big ... keep default of max distance
+                    pass
+
+        # running munkress on both sides ....
+        n_ccs = cc_boxes.shape[0]
+        l_raw_cost, l_valid_cost, l_assignments = self.get_best_assignments(left_distances, n_ccs, max_distance)
+        r_raw_cost, r_valid_cost, r_assignments=  self.get_best_assignments(right_distances, n_ccs, max_distance)
+
+        if l_raw_cost < r_raw_cost:
+            # assume left alignment ...
+            title = "try_left"
+            assignments = l_assignments
+        else:
+            # use right alignment ..
+            title = "try_right"
+            assignments = r_assignments
+
+        # cv2.imshow(title, binarized)
+
+        # discard candidates if pairwise IOU is inconsistent ..
+        min_overlap = 0.8
+        for pair_idx, (text_idx_1, cc_idx_1) in enumerate(assignments[:-1]):
+            cc_1_min_x, cc_1_max_x, cc_1_min_y, cc_1_max_y = cc_boxes[cc_idx_1]
+
+            for text_idx_2, cc_idx_2 in assignments[pair_idx + 1:]:
+                cc_2_min_x, cc_2_max_x, cc_2_min_y, cc_2_max_y = cc_boxes[cc_idx_2]
+
+                if legend_orientation == LegendInfo.OrientationVertical:
+                    # they should overlap on X ...
+                    IOU = self.get_intervals_IOU(cc_1_min_x, cc_1_max_x, cc_2_min_x, cc_2_max_x)
+
+                else:
+                    # they should overlap on Y ...
+                    IOU = self.get_intervals_IOU(cc_1_min_y, cc_1_max_y, cc_2_min_y, cc_2_max_y)
+
+                # print((pair_idx, text_idx_1, text_idx_2, IOU))
+                if IOU < min_overlap:
+                    # do not create the default boxes
+                    return
+
+        # create the default bboxes for valid assignments ...
+        for text_idx, cc_idx in assignments:
+            text_id = self.legend.text_labels[text_idx].id
+
+            # create default legend bbox using this element ...
+            cc_min_x, cc_max_x, cc_min_y, cc_max_y = cc_boxes[cc_idx]
+            points = np.array([[cc_min_x - 1, cc_min_y - 1],
+                               [cc_max_x + 1, cc_min_y - 1],
+                               [cc_max_x + 1, cc_max_y + 1],
+                               [cc_min_x - 1, cc_max_y + 1]], dtype=np.float64)
+            self.legend.marker_per_label[text_id] = points
+            # print((text_idx, text_id, cc_idx, distances[text_idx, cc_idx]))
+
+        # cv2.imshow("-", binarized)
+        # cv2.waitKey()
 
     def create_controllers(self):
         # add elements....
@@ -120,61 +269,8 @@ class ChartLegendAnnotator(Screen):
         # View Options Panel
 
         # View panel with view control buttons
-        self.container_view_buttons = ScreenContainer("container_view_buttons", (container_width, 160),
-                                                      back_color=self.general_background)
-        self.container_view_buttons.position = (self.width - self.container_view_buttons.width - 10, container_top)
-        self.elements.append(self.container_view_buttons)
-
-        # zoom ....
-        self.lbl_zoom = ScreenLabel("lbl_zoom", "Zoom: 100%", 21, 290, 1)
-        self.lbl_zoom.position = (5, 5)
-        self.lbl_zoom.set_background(self.general_background)
-        self.lbl_zoom.set_color(self.text_color)
-        self.container_view_buttons.append(self.lbl_zoom)
-
-        self.btn_zoom_reduce = ScreenButton("btn_zoom_reduce", "[ - ]", 21, 90)
-        self.btn_zoom_reduce.set_colors(button_text_color, button_back_color)
-        self.btn_zoom_reduce.position = (10, self.lbl_zoom.get_bottom() + 10)
-        self.btn_zoom_reduce.click_callback = self.btn_zoom_reduce_click
-        self.container_view_buttons.append(self.btn_zoom_reduce)
-
-        self.btn_zoom_increase = ScreenButton("btn_zoom_increase", "[ + ]", 21, 90)
-        self.btn_zoom_increase.set_colors(button_text_color, button_back_color)
-        self.btn_zoom_increase.position = (self.container_view_buttons.width - self.btn_zoom_increase.width - 10,
-                                           self.lbl_zoom.get_bottom() + 10)
-        self.btn_zoom_increase.click_callback = self.btn_zoom_increase_click
-        self.container_view_buttons.append(self.btn_zoom_increase)
-
-        self.btn_zoom_zero = ScreenButton("btn_zoom_zero", "100%", 21, 90)
-        self.btn_zoom_zero.set_colors(button_text_color, button_back_color)
-        self.btn_zoom_zero.position = ((self.container_view_buttons.width - self.btn_zoom_zero.width) / 2,
-                                       self.lbl_zoom.get_bottom() + 10)
-        self.btn_zoom_zero.click_callback = self.btn_zoom_zero_click
-        self.container_view_buttons.append(self.btn_zoom_zero)
-
-        self.btn_view_raw_data = ScreenButton("btn_view_raw_data", "RGB Data", 21, button_2_width)
-        self.btn_view_raw_data.set_colors(button_text_color, button_back_color)
-        self.btn_view_raw_data.position = (button_2_left, self.btn_zoom_zero.get_bottom() + 10)
-        self.btn_view_raw_data.click_callback = self.btn_view_raw_data_click
-        self.container_view_buttons.append(self.btn_view_raw_data)
-
-        self.btn_view_gray_data = ScreenButton("btn_view_gray", "Gray Data", 21, button_2_width)
-        self.btn_view_gray_data.set_colors(button_text_color, button_back_color)
-        self.btn_view_gray_data.position = (button_2_right, self.btn_zoom_zero.get_bottom() + 10)
-        self.btn_view_gray_data.click_callback = self.btn_view_gray_data_click
-        self.container_view_buttons.append(self.btn_view_gray_data)
-
-        self.btn_view_raw_clear = ScreenButton("btn_view_raw_clear", "RGB Clear", 21, button_2_width)
-        self.btn_view_raw_clear.set_colors(button_text_color, button_back_color)
-        self.btn_view_raw_clear.position = (button_2_left, self.btn_view_raw_data.get_bottom() + 10)
-        self.btn_view_raw_clear.click_callback = self.btn_view_raw_clear_click
-        self.container_view_buttons.append(self.btn_view_raw_clear)
-
-        self.btn_view_gray_clear = ScreenButton("btn_view_gray_clear", "Gray Clear", 21, button_2_width)
-        self.btn_view_gray_clear.set_colors(button_text_color, button_back_color)
-        self.btn_view_gray_clear.position = (button_2_right, self.btn_view_raw_data.get_bottom() + 10)
-        self.btn_view_gray_clear.click_callback = self.btn_view_gray_clear_click
-        self.container_view_buttons.append(self.btn_view_gray_clear)
+        self.create_image_annotator_controls(container_top, container_width, self.general_background, self.text_color,
+                                             button_text_color, button_back_color)
 
         # ===========================
         # confirmation panel
@@ -271,38 +367,6 @@ class ChartLegendAnnotator(Screen):
         # ======================================
         # visuals
         # ===========================
-        # Image
-
-        image_width = self.width - self.container_view_buttons.width - 30
-        image_height = self.height - container_top - 10
-        self.container_images = ScreenContainer("container_images", (image_width, image_height), back_color=(0, 0, 0))
-        self.container_images.position = (10, container_top)
-        self.elements.append(self.container_images)
-
-        # ... image objects ...
-        tempo_blank = np.zeros((50, 50, 3), np.uint8)
-        tempo_blank[:, :, :] = 255
-        self.img_main = ScreenImage("img_main", tempo_blank, 0, 0, True, cv2.INTER_NEAREST)
-        self.img_main.position = (0, 0)
-        self.img_main.mouse_button_down_callback = self.img_mouse_down
-        self.img_main.double_click_callback = self.img_mouse_double_click
-        self.container_images.append(self.img_main)
-
-        self.canvas_select = ScreenCanvas("canvas_select", 100, 100)
-        self.canvas_select.position = (0, 0)
-        self.canvas_select.locked = True
-        # self.canvas_select.object_edited_callback = self.canvas_object_edited
-        # self.canvas_select.object_selected_callback = self.canvas_selection_changed
-        self.container_images.append(self.canvas_select)
-
-        base_points = np.array([[10, 10], [20, 10], [20, 20], [10, 20]], dtype=np.float64)
-        self.canvas_select.add_polygon_element("selection_polygon", base_points)
-        self.canvas_select.elements["selection_polygon"].visible = False
-
-        self.canvas_display = ScreenCanvas("canvas_display", 100, 100)
-        self.canvas_display.position = (0, 0)
-        self.canvas_display.locked = True
-        self.container_images.append(self.canvas_display)
 
         self.add_text_regions()
 
@@ -331,102 +395,8 @@ class ChartLegendAnnotator(Screen):
                 marker_pos = self.legend.marker_per_label[text.id].copy()
                 self.canvas_display.add_polygon_element(str(text.id) + "-mark", marker_pos, main_color, sel_color)
 
-    def btn_zoom_reduce_click(self, button):
-        self.update_view_scale(self.view_scale - 0.25)
-
-    def btn_zoom_increase_click(self, button):
-        self.update_view_scale(self.view_scale + 0.25)
-
-    def btn_zoom_zero_click(self, button):
-        self.update_view_scale(1.0)
-
-    def btn_view_raw_data_click(self, button):
-        self.view_mode = ChartLegendAnnotator.ViewModeRawData
-        self.update_current_view()
-
-    def btn_view_gray_data_click(self, button):
-        self.view_mode = ChartLegendAnnotator.ViewModeGrayData
-        self.update_current_view()
-
-    def btn_view_raw_clear_click(self, button):
-        self.view_mode = ChartLegendAnnotator.ViewModeRawNoData
-        self.update_current_view()
-
-    def btn_view_gray_clear_click(self, button):
-        self.view_mode = ChartLegendAnnotator.ViewModeGrayNoData
-        self.update_current_view()
-
-    def update_current_view(self, resized=False):
-        if self.view_mode in [ChartLegendAnnotator.ViewModeGrayData, ChartLegendAnnotator.ViewModeGrayNoData]:
-            # gray scale mode
-            base_image = self.panel_gray
-        else:
-            base_image = self.panel_image
-
-        h, w, c = base_image.shape
-
-        modified_image = base_image.copy()
-
-        if self.view_mode in [ChartLegendAnnotator.ViewModeRawData, ChartLegendAnnotator.ViewModeGrayData]:
-            # TODO: show here any relevant annotations on the modified image ...
-            # (for example, draw the polygons)
-            self.canvas_display.visible = True
-        else:
-            self.canvas_display.visible = False
-
-        # finally, resize ...
-        modified_image = cv2.resize(modified_image, (int(w * self.view_scale), int(h * self.view_scale)),
-                                    interpolation=cv2.INTER_NEAREST)
-
-        # update canvas size ....
-        self.canvas_select.height, self.canvas_select.width, _ = modified_image.shape
-        self.canvas_display.height, self.canvas_display.width, _ = modified_image.shape
-
-        # replace/update image
-        self.img_main.set_image(modified_image, 0, 0, True, cv2.INTER_NEAREST)
-        if resized:
-            self.container_images.recalculate_size()
-
-    def update_view_scale(self, new_scale):
-        prev_scale = self.view_scale
-
-        if 0.25 <= new_scale <= 4.0:
-            self.view_scale = new_scale
-        else:
-            return
-
-        # keep previous offsets ...
-        scroll_offset_y = self.container_images.v_scroll.value if self.container_images.v_scroll.active else 0
-        scroll_offset_x = self.container_images.h_scroll.value if self.container_images.h_scroll.active else 0
-
-        prev_center_y = scroll_offset_y + self.container_images.height / 2
-        prev_center_x = scroll_offset_x + self.container_images.width / 2
-
-        # compute new scroll bar offsets
-        scale_factor = (new_scale / prev_scale)
-        new_off_y = prev_center_y * scale_factor - self.container_images.height / 2
-        new_off_x = prev_center_x * scale_factor - self.container_images.width / 2
-
-        # update view ....
-        self.update_current_view(True)
-
-        # set offsets
-        if self.container_images.v_scroll.active and 0 <= new_off_y <= self.container_images.v_scroll.max:
-            self.container_images.v_scroll.value = new_off_y
-        if self.container_images.h_scroll.active and 0 <= new_off_x <= self.container_images.h_scroll.max:
-            self.container_images.h_scroll.value = new_off_x
-
-        # re-scale objects from both canvas
-        # ... selection ...
-        selection_polygon = self.canvas_select.elements["selection_polygon"]
-        selection_polygon.points *= scale_factor
-        # ... display ...
-        for polygon_name in self.canvas_display.elements:
-            display_polygon = self.canvas_display.elements[polygon_name]
-            display_polygon.points *= scale_factor
-
-        # update scale text ...
-        self.lbl_zoom.set_text("Zoom: " + str(int(round(self.view_scale * 100,0))) + "%")
+    def custom_view_update(self, modified_image):
+        pass
 
     def set_editor_mode(self, new_mode):
         self.edition_mode = new_mode
@@ -530,7 +500,7 @@ class ChartLegendAnnotator(Screen):
 
         return points
 
-    def img_mouse_down(self, img_object, pos, button):
+    def img_main_mouse_button_down(self, img_object, pos, button):
         if button == 1:
             if self.edition_mode == ChartLegendAnnotator.ModeRectangleSelect:
                 click_x, click_y = pos
@@ -579,7 +549,6 @@ class ChartLegendAnnotator(Screen):
 
         self.data_changed = True
 
-
     def btn_return_accept_click(self, button):
         if self.data_changed:
             # overwrite existing legend data ...
@@ -596,7 +565,6 @@ class ChartLegendAnnotator(Screen):
             # simply return
             self.return_screen = self.parent_screen
 
-
     def btn_edit_force_box_click(self, button):
         legend_entry_polygon = self.canvas_select.elements["selection_polygon"].points / self.view_scale
 
@@ -606,7 +574,7 @@ class ChartLegendAnnotator(Screen):
         legend_entry_polygon = np.array([[minx, miny], [maxx, miny], [maxx, maxy], [minx, maxy]])
         self.canvas_select.elements["selection_polygon"].update(legend_entry_polygon * self.view_scale)
 
-    def img_mouse_double_click(self, element, pos, button):
+    def img_main_mouse_double_click(self, element, pos, button):
         if button == 1:
             # double left click ...
             if self.edition_mode == ChartLegendAnnotator.ModeNavigate:

@@ -10,10 +10,12 @@ from AM_CommonTools.interface.controls.screen_image import ScreenImage
 from AM_CommonTools.interface.controls.screen_canvas import ScreenCanvas
 from AM_CommonTools.interface.controls.screen_textlist import ScreenTextlist
 
+from ChartInfo.annotation.base_image_annotator import BaseImageAnnotator
+
 from ChartInfo.data.bar_data import BarData
 from ChartInfo.data.series_sorting import SeriesSorting
 
-class BarChartAnnotator(Screen):
+class BarChartAnnotator(BaseImageAnnotator):
     ModeNavigate = 0
     ModeNumberEdit = 1
     ModeOrderEdit = 2
@@ -24,23 +26,18 @@ class BarChartAnnotator(Screen):
     ModeConfirmNumberOverwrite = 7
     ModeConfirmExit = 8
 
-    ViewModeRawData = 0
-    ViewModeGrayData = 1
-    ViewModeRawNoData = 2
-    ViewModeGrayNoData = 3
-
     AutoBarProfile = 0
     AutoBarColorVariance = 1
     AutoBarLegendColorAlignment = 2
 
     def __init__(self, size, panel_image, panel_info, parent_screen):
-        Screen.__init__(self, "Bar Chart Ground Truth Annotation Interface", size)
+        BaseImageAnnotator.__init__(self, "Bar Chart Ground Truth Annotation Interface", size)
 
-        self.panel_image = panel_image
-        self.panel_gray = np.zeros(self.panel_image.shape, self.panel_image.dtype)
-        self.panel_gray[:, :, 0] = cv2.cvtColor(self.panel_image, cv2.COLOR_RGB2GRAY)
-        self.panel_gray[:, :, 1] = self.panel_gray[:, :, 0].copy()
-        self.panel_gray[:, :, 2] = self.panel_gray[:, :, 0].copy()
+        self.base_rgb_image = panel_image
+        self.base_gray_image = np.zeros(self.base_rgb_image.shape, self.base_rgb_image.dtype)
+        self.base_gray_image[:, :, 0] = cv2.cvtColor(self.base_rgb_image, cv2.COLOR_RGB2GRAY)
+        self.base_gray_image[:, :, 1] = self.base_gray_image[:, :, 0].copy()
+        self.base_gray_image[:, :, 2] = self.base_gray_image[:, :, 0].copy()
 
         self.panel_info = panel_info
 
@@ -74,23 +71,11 @@ class BarChartAnnotator(Screen):
 
         self.tempo_bar_lengths = None
         self.tempo_bar_polygons = None
+        self.tempo_red_lines = None
+        self.tempo_green_lines = None
         self.tempo_bar_polygon_index = None
 
-        self.view_mode = BarChartAnnotator.ViewModeRawData
-        self.view_scale = 1.0
-
         self.label_title = None
-
-        self.container_view_buttons = None
-        self.lbl_zoom = None
-        self.btn_zoom_reduce = None
-        self.btn_zoom_increase = None
-        self.btn_zoom_zero = None
-
-        self.btn_view_raw_data = None
-        self.btn_view_gray_data = None
-        self.btn_view_raw_clear = None
-        self.btn_view_gray_clear = None
 
         self.container_confirm_buttons = None
         self.lbl_confirm_message = None
@@ -157,10 +142,6 @@ class BarChartAnnotator(Screen):
         self.btn_data_auto = None
         self.btn_data_return = None
 
-        self.container_images = None
-        self.canvas_display = None
-        self.img_main = None
-
         self.create_controllers()
 
         # get the view ...
@@ -191,63 +172,8 @@ class BarChartAnnotator(Screen):
 
         # ===========================
         # View Options Panel
-
-        # View panel with view control buttons
-        self.container_view_buttons = ScreenContainer("container_view_buttons", (container_width, 160),
-                                                      back_color=self.general_background)
-        self.container_view_buttons.position = (self.width - self.container_view_buttons.width - 10, container_top)
-        self.elements.append(self.container_view_buttons)
-
-        # zoom ....
-        self.lbl_zoom = ScreenLabel("lbl_zoom", "Zoom: 100%", 21, 290, 1)
-        self.lbl_zoom.position = (5, 5)
-        self.lbl_zoom.set_background(self.general_background)
-        self.lbl_zoom.set_color(self.text_color)
-        self.container_view_buttons.append(self.lbl_zoom)
-
-        self.btn_zoom_reduce = ScreenButton("btn_zoom_reduce", "[ - ]", 21, 90)
-        self.btn_zoom_reduce.set_colors(button_text_color, button_back_color)
-        self.btn_zoom_reduce.position = (10, self.lbl_zoom.get_bottom() + 10)
-        self.btn_zoom_reduce.click_callback = self.btn_zoom_reduce_click
-        self.container_view_buttons.append(self.btn_zoom_reduce)
-
-        self.btn_zoom_increase = ScreenButton("btn_zoom_increase", "[ + ]", 21, 90)
-        self.btn_zoom_increase.set_colors(button_text_color, button_back_color)
-        self.btn_zoom_increase.position = (self.container_view_buttons.width - self.btn_zoom_increase.width - 10,
-                                           self.lbl_zoom.get_bottom() + 10)
-        self.btn_zoom_increase.click_callback = self.btn_zoom_increase_click
-        self.container_view_buttons.append(self.btn_zoom_increase)
-
-        self.btn_zoom_zero = ScreenButton("btn_zoom_zero", "100%", 21, 90)
-        self.btn_zoom_zero.set_colors(button_text_color, button_back_color)
-        self.btn_zoom_zero.position = ((self.container_view_buttons.width - self.btn_zoom_zero.width) / 2,
-                                       self.lbl_zoom.get_bottom() + 10)
-        self.btn_zoom_zero.click_callback = self.btn_zoom_zero_click
-        self.container_view_buttons.append(self.btn_zoom_zero)
-
-        self.btn_view_raw_data = ScreenButton("btn_view_raw_data", "RGB Data", 21, button_2_width)
-        self.btn_view_raw_data.set_colors(button_text_color, button_back_color)
-        self.btn_view_raw_data.position = (button_2_left, self.btn_zoom_zero.get_bottom() + 10)
-        self.btn_view_raw_data.click_callback = self.btn_view_raw_data_click
-        self.container_view_buttons.append(self.btn_view_raw_data)
-
-        self.btn_view_gray_data = ScreenButton("btn_view_gray", "Gray Data", 21, button_2_width)
-        self.btn_view_gray_data.set_colors(button_text_color, button_back_color)
-        self.btn_view_gray_data.position = (button_2_right, self.btn_zoom_zero.get_bottom() + 10)
-        self.btn_view_gray_data.click_callback = self.btn_view_gray_data_click
-        self.container_view_buttons.append(self.btn_view_gray_data)
-
-        self.btn_view_raw_clear = ScreenButton("btn_view_raw_clear", "RGB Clear", 21, button_2_width)
-        self.btn_view_raw_clear.set_colors(button_text_color, button_back_color)
-        self.btn_view_raw_clear.position = (button_2_left, self.btn_view_raw_data.get_bottom() + 10)
-        self.btn_view_raw_clear.click_callback = self.btn_view_raw_clear_click
-        self.container_view_buttons.append(self.btn_view_raw_clear)
-
-        self.btn_view_gray_clear = ScreenButton("btn_view_gray_clear", "Gray Clear", 21, button_2_width)
-        self.btn_view_gray_clear.set_colors(button_text_color, button_back_color)
-        self.btn_view_gray_clear.position = (button_2_right, self.btn_view_raw_data.get_bottom() + 10)
-        self.btn_view_gray_clear.click_callback = self.btn_view_gray_clear_click
-        self.container_view_buttons.append(self.btn_view_gray_clear)
+        self.create_image_annotator_controls(container_top, container_width, self.general_background, self.text_color,
+                                             button_text_color, button_back_color)
 
         # ===========================
         # confirmation panel
@@ -667,28 +593,8 @@ class BarChartAnnotator(Screen):
         # ======================================
         # visuals
         # ===========================
-        # Image
-
-        image_width = self.width - self.container_view_buttons.width - 30
-        image_height = self.height - container_top - 10
-        self.container_images = ScreenContainer("container_images", (image_width, image_height), back_color=(0, 0, 0))
-        self.container_images.position = (10, container_top)
-        self.elements.append(self.container_images)
 
         # ... image objects ...
-        tempo_blank = np.zeros((50, 50, 3), np.uint8)
-        tempo_blank[:, :, :] = 255
-        self.img_main = ScreenImage("img_main", tempo_blank, 0, 0, True, cv2.INTER_NEAREST)
-        self.img_main.position = (0, 0)
-        self.img_main.mouse_button_down_callback = self.img_mouse_down
-        self.container_images.append(self.img_main)
-
-        self.canvas_display = ScreenCanvas("canvas_display", 100, 100)
-        self.canvas_display.position = (0, 0)
-        self.canvas_display.locked = True
-        self.canvas_display.object_edited_callback = self.canvas_object_edited
-        self.container_images.append(self.canvas_display)
-
         self.canvas_display.add_slider_element("bar_params", (0, 0), not self.data.bar_vertical, 100, 50, [0],
                                                (164, 192,0), (92, 128,0))
         self.canvas_display.elements["bar_params"].visible = False
@@ -722,31 +628,6 @@ class BarChartAnnotator(Screen):
                 display_value = "{0:d}: {1:s}".format(idx + 1, current_text.value)
 
             self.lbx_number_series_values.add_option(str(idx), display_value)
-
-    def btn_zoom_reduce_click(self, button):
-        self.update_view_scale(self.view_scale - 0.25)
-
-    def btn_zoom_increase_click(self, button):
-        self.update_view_scale(self.view_scale + 0.25)
-
-    def btn_zoom_zero_click(self, button):
-        self.update_view_scale(1.0)
-
-    def btn_view_raw_data_click(self, button):
-        self.view_mode = BarChartAnnotator.ViewModeRawData
-        self.update_current_view()
-
-    def btn_view_gray_data_click(self, button):
-        self.view_mode = BarChartAnnotator.ViewModeGrayData
-        self.update_current_view()
-
-    def btn_view_raw_clear_click(self, button):
-        self.view_mode = BarChartAnnotator.ViewModeRawNoData
-        self.update_current_view()
-
-    def btn_view_gray_clear_click(self, button):
-        self.view_mode = BarChartAnnotator.ViewModeGrayNoData
-        self.update_current_view()
 
     def get_bar_lines(self, bar_baseline, bar_start, bar_end, bar_length):
         if self.data.bar_vertical:
@@ -785,17 +666,7 @@ class BarChartAnnotator(Screen):
 
         return polygons, polygon_index
 
-    def update_current_view(self, resized=False):
-        if self.view_mode in [BarChartAnnotator.ViewModeGrayData, BarChartAnnotator.ViewModeGrayNoData]:
-            # gray scale mode
-            base_image = self.panel_gray
-        else:
-            base_image = self.panel_image
-
-        h, w, c = base_image.shape
-
-        modified_image = base_image.copy()
-
+    def compute_bar_polygons(self):
         x1, y1, x2, y2 = self.panel_info.axes.bounding_box
         x1 = int(x1)
         y1 = int(y1)
@@ -831,6 +702,8 @@ class BarChartAnnotator(Screen):
             bar_baseline = x1
 
         current_lines = []
+        self.tempo_red_lines = []
+        self.tempo_green_lines = []
         self.tempo_bar_polygon_index = []
 
         if self.data.bar_grouping == BarData.GroupingByCategory:
@@ -843,6 +716,15 @@ class BarChartAnnotator(Screen):
                     polygons, polygon_index = self.get_stacked_bar_lines(cat_idx, group, bar_lengths, bar_baseline,
                                                                          bar_start, bar_end)
 
+                    # For drawing ...
+                    if self.edition_mode in [BarChartAnnotator.ModeDataEdit, BarChartAnnotator.ModeDataSelect]:
+                        self.tempo_green_lines += [polygons[self.tempo_data_layer]]
+                        self.tempo_red_lines += polygons[:self.tempo_data_layer]
+                        self.tempo_red_lines += polygons[self.tempo_data_layer + 1:]
+                    else:
+                        self.tempo_red_lines += polygons
+
+                    # for mapping clicks ...
                     current_lines += polygons
                     self.tempo_bar_polygon_index += polygon_index
 
@@ -865,6 +747,15 @@ class BarChartAnnotator(Screen):
                     polygons, polygon_index = self.get_stacked_bar_lines(cat_idx, group, bar_lengths, bar_baseline,
                                                                          bar_start, bar_end)
 
+                    # for drawing ...
+                    if self.edition_mode in [BarChartAnnotator.ModeDataEdit, BarChartAnnotator.ModeDataSelect]:
+                        self.tempo_green_lines += [polygons[self.tempo_data_layer]]
+                        self.tempo_red_lines += polygons[:self.tempo_data_layer]
+                        self.tempo_red_lines += polygons[self.tempo_data_layer + 1:]
+                    else:
+                        self.tempo_red_lines += polygons
+
+                    # for click processing ...
                     current_lines += polygons
                     self.tempo_bar_polygon_index += polygon_index
 
@@ -880,70 +771,33 @@ class BarChartAnnotator(Screen):
         current_lines = np.array(current_lines).round().astype(np.int32)
         self.tempo_bar_polygons = current_lines
 
-        if self.view_mode in [BarChartAnnotator.ViewModeRawData, BarChartAnnotator.ViewModeGrayData]:
-            # (for example, draw the polygons)
-            self.canvas_display.visible = True
+    def custom_view_update(self, modified_image):
+        x1, y1, x2, y2 = self.panel_info.axes.bounding_box
+        x1 = int(x1)
+        y1 = int(y1)
+        x2 = int(x2)
+        y2 = int(y2)
 
-            # axes lines
-            cv2.line(modified_image, (x1, y1), (x1, y2), (0, 255, 0), thickness=1)  # y = green
-            cv2.line(modified_image, (x1, y2), (x2, y2), (0, 0, 255), thickness=1)  # x = blue
-            # close the data area rectangle ?
-            # cv2.line(modified_image, (x2, y1), (x2, y2), (0, 128, 0), thickness=1)
-            # cv2.line(modified_image, (x1, y1), (x2, y1), (0, 0, 128), thickness=1)
+        # axes lines
+        cv2.line(modified_image, (x1, y1), (x1, y2), (0, 255, 0), thickness=1)  # y = green
+        cv2.line(modified_image, (x1, y2), (x2, y2), (0, 0, 255), thickness=1)  # x = blue
+        # close the data area rectangle ?
+        # cv2.line(modified_image, (x2, y1), (x2, y2), (0, 128, 0), thickness=1)
+        # cv2.line(modified_image, (x1, y1), (x2, y1), (0, 0, 128), thickness=1)
 
-            modified_image = cv2.polylines(modified_image, current_lines, False, (255, 0, 0))
-        else:
-            self.canvas_display.visible = False
+        # modified_image = cv2.polylines(modified_image, current_lines, False, (255, 0, 0))
+        if len(self.tempo_red_lines) > 0:
+            red_lines = np.array(self.tempo_red_lines).round().astype(np.int32)
+            modified_image = cv2.polylines(modified_image, red_lines, False, (255, 0, 0))
+        if len(self.tempo_green_lines) > 0:
+            green_lines = np.array(self.tempo_green_lines).round().astype(np.int32)
+            modified_image = cv2.polylines(modified_image, green_lines, False, (0, 255, 0))
 
-        # finally, resize ...
-        modified_image = cv2.resize(modified_image, (int(w * self.view_scale), int(h * self.view_scale)),
-                                    interpolation=cv2.INTER_NEAREST)
-
-        # update canvas size ....
-        self.canvas_display.height, self.canvas_display.width, _ = modified_image.shape
-
-        # replace/update image
-        self.img_main.set_image(modified_image, 0, 0, True, cv2.INTER_NEAREST)
-        if resized:
-            self.container_images.recalculate_size()
-
-    def update_view_scale(self, new_scale):
-        prev_scale = self.view_scale
-
-        if 0.25 <= new_scale <= 4.0:
-            self.view_scale = new_scale
-        else:
-            return
-
-        # keep previous offsets ...
-        scroll_offset_y = self.container_images.v_scroll.value if self.container_images.v_scroll.active else 0
-        scroll_offset_x = self.container_images.h_scroll.value if self.container_images.h_scroll.active else 0
-
-        prev_center_y = scroll_offset_y + self.container_images.height / 2
-        prev_center_x = scroll_offset_x + self.container_images.width / 2
-
-        # compute new scroll bar offsets
-        scale_factor = (new_scale / prev_scale)
-        new_off_y = prev_center_y * scale_factor - self.container_images.height / 2
-        new_off_x = prev_center_x * scale_factor - self.container_images.width / 2
-
-        # update view ....
-        self.update_current_view(True)
-
-        # set offsets
-        if self.container_images.v_scroll.active and 0 <= new_off_y <= self.container_images.v_scroll.max:
-            self.container_images.v_scroll.value = new_off_y
-        if self.container_images.h_scroll.active and 0 <= new_off_x <= self.container_images.h_scroll.max:
-            self.container_images.h_scroll.value = new_off_x
-
-        # re-scale objects from both canvas
-        # ... display ...
-        for polygon_name in self.canvas_display.elements:
-            display_polygon = self.canvas_display.elements[polygon_name]
-            display_polygon.points *= scale_factor
-
-        # update scale text ...
-        self.lbl_zoom.set_text("Zoom: " + str(int(round(self.view_scale * 100,0))) + "%")
+    def update_current_view(self, resized=False):
+        # update the bar polygons ...
+        self.compute_bar_polygons()
+        # call parent update view ...
+        BaseImageAnnotator.update_current_view(self, resized)
 
     def set_editor_mode(self, new_mode):
         self.edition_mode = new_mode
@@ -1001,7 +855,7 @@ class BarChartAnnotator(Screen):
         else:
             raise Exception("Not Implemented")
 
-    def img_mouse_down(self, img_object, pos, button):
+    def img_main_mouse_button_down(self, img_object, pos, button):
         if button == 1:
             if self.edition_mode == BarChartAnnotator.ModeDataSelect:
                 # click pos ...
@@ -1392,8 +1246,8 @@ class BarChartAnnotator(Screen):
         x2 = int(x2)
         y2 = int(y2)
 
-        data_region_img = self.panel_image[y1:y2, x1:x2]
-        mask = np.ones((self.panel_image.shape[0], self.panel_image.shape[1]), dtype=np.bool)
+        data_region_img = self.base_rgb_image[y1:y2, x1:x2]
+        mask = np.ones((self.base_rgb_image.shape[0], self.base_rgb_image.shape[1]), dtype=np.bool)
 
         for bar_idx, polygon in enumerate(self.tempo_bar_polygons):
             # get bar meta-data
@@ -1434,7 +1288,7 @@ class BarChartAnnotator(Screen):
                 break
             else:
                 marker_id = self.data.data_series[series_idx].id
-                marker_median = self.panel_info.legend.get_marker_median_color(self.panel_image, marker_id)
+                marker_median = self.panel_info.legend.get_marker_median_color(self.base_rgb_image, marker_id)
                 legend_colors.append(marker_median)
 
         if not valid_stack:
@@ -1645,10 +1499,10 @@ class BarChartAnnotator(Screen):
                         reverse_bar_index[stack_key] = [(stack_idx, bar_idx)]
 
                         if self.data.bar_vertical:
-                            sub_image = self.panel_image[y1:y2, bar_start:bar_end]
+                            sub_image = self.base_rgb_image[y1:y2, bar_start:bar_end]
                             features = sub_image[::-1].reshape(sub_image.shape[0], sub_image.shape[1] * 3)
                         else:
-                            sub_image = self.panel_image[bar_start:bar_end, x1:x2]
+                            sub_image = self.base_rgb_image[bar_start:bar_end, x1:x2]
                             features = sub_image.transpose((1, 0, 2)).reshape(sub_image.shape[1], sub_image.shape[0] * 3)
                         stack_features[stack_key] = features
                     else:
@@ -1693,10 +1547,10 @@ class BarChartAnnotator(Screen):
             if self.auto_bar_adjust_mode == BarChartAnnotator.AutoBarProfile:
                 if self.data.bar_vertical:
                     # detect horizontal edges ....
-                    edge_img = cv2.Sobel(self.panel_gray, cv2.CV_64F, 0, 1, ksize=5)
+                    edge_img = cv2.Sobel(self.base_gray_image, cv2.CV_64F, 0, 1, ksize=5)
                 else:
                     # detect vertical edges
-                    edge_img = cv2.Sobel(self.panel_gray,cv2.CV_64F, 1, 0,ksize=5)
+                    edge_img = cv2.Sobel(self.base_gray_image, cv2.CV_64F, 1, 0, ksize=5)
 
                 edge_img = (np.abs(edge_img).astype(np.float64) / edge_img.max()) * 255
             else:
@@ -1721,7 +1575,7 @@ class BarChartAnnotator(Screen):
                         best_length = y2 - y1 - np.argmax(profile)
                     elif self.auto_bar_adjust_mode in [BarChartAnnotator.AutoBarColorVariance,
                                                        BarChartAnnotator.AutoBarLegendColorAlignment]:
-                        sub_image = self.panel_image[y1:y2, bar_start:bar_end]
+                        sub_image = self.base_rgb_image[y1:y2, bar_start:bar_end]
                         features = sub_image[::-1].reshape(sub_image.shape[0], sub_image.shape[1] * 3)
                         clusters = self.cluster_by_small_variance(features, 2, 1)
 
@@ -1742,7 +1596,7 @@ class BarChartAnnotator(Screen):
                         best_length = np.argmax(profile)
                     elif self.auto_bar_adjust_mode in [BarChartAnnotator.AutoBarColorVariance,
                                                        BarChartAnnotator.AutoBarLegendColorAlignment]:
-                        sub_image = self.panel_image[bar_start:bar_end, x1:x2]
+                        sub_image = self.base_rgb_image[bar_start:bar_end, x1:x2]
                         features = sub_image.transpose((1, 0, 2)).reshape(sub_image.shape[1], sub_image.shape[0] * 3)
                         clusters = self.cluster_by_small_variance(features, 2, 1)
 
@@ -1909,6 +1763,7 @@ class BarChartAnnotator(Screen):
         if self.tempo_data_layer > 0:
             self.tempo_data_layer -= 1
             self.update_stack_bar_layer()
+            self.update_current_view()
 
     def btn_data_layer_next_click(self, button):
         total_layers = self.data.total_layers()
@@ -1916,6 +1771,7 @@ class BarChartAnnotator(Screen):
         if self.tempo_data_layer + 1 < total_layers:
             self.tempo_data_layer += 1
             self.update_stack_bar_layer()
+            self.update_current_view()
 
     def update_stack_bar_layer(self):
         total_layers = self.data.total_layers()
@@ -1933,7 +1789,7 @@ class BarChartAnnotator(Screen):
 
             self.lbx_data_layer_elements.add_option(str(idx), "{0:d}: {1:s}".format(idx + 1, value_str))
 
-    def canvas_object_edited(self, canvas, element_name):
+    def canvas_display_object_edited(self, canvas, element_name):
         if element_name == "bar_params":
             self.update_bar_params_from_slider()
             self.update_current_view()
