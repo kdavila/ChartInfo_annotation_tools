@@ -161,6 +161,10 @@ class ChartAxesAnnotator(BaseImageAnnotator):
         self.btn_lpt_auto = None
         self.btn_lpt_return = None
 
+        self.container_preview_buttons = None
+        self.lbl_preview_title = None
+        self.img_preview = None
+
         self.create_controllers()
 
         # get the view ...
@@ -650,9 +654,28 @@ class ChartAxesAnnotator(BaseImageAnnotator):
         self.container_labels_per_tick_buttons.append(self.btn_lpt_return)
         self.container_labels_per_tick_buttons.visible = False
 
-        # ======================================
-        # visuals
-        # ===========================
+        # =====================
+        # Zoom-in on current position
+
+        self.container_preview_buttons = ScreenContainer("container_preview_buttons", (container_width, 280),
+                                                         back_color=darker_background)
+        self.container_preview_buttons.position = (self.container_confirm_buttons.get_left(),
+                                                   self.container_confirm_buttons.get_bottom() + 20)
+        self.elements.append(self.container_preview_buttons)
+
+        self.lbl_preview_title = ScreenLabel("lbl_preview_title", "Zoom: 500%", 25, 290, 1)
+        self.lbl_preview_title.position = (5, 5)
+        self.lbl_preview_title.set_background(darker_background)
+        self.lbl_preview_title.set_color(self.text_color)
+        self.container_preview_buttons.append(self.lbl_preview_title)
+
+        tempo_blank = np.zeros((50, 50, 3), np.uint8)
+        tempo_blank[:, :, :] = 255
+        self.img_preview = ScreenImage("img_preview", tempo_blank, 200, 200, True, cv2.INTER_NEAREST)
+        self.img_preview.position = (int(container_width / 2 - 100), self.lbl_preview_title.get_bottom() + 20)
+        self.container_preview_buttons.append(self.img_preview)
+
+        self.img_main.mouse_motion_callback = self.img_main_mouse_motion
 
         self.update_axes_buttons()
         self.update_axis_list_boxes()
@@ -729,7 +752,7 @@ class ChartAxesAnnotator(BaseImageAnnotator):
                 p1 = (int(axis_position - tick_length), int(tick_info.position))
                 p2 = (int(axis_position + tick_length), int(tick_info.position))
 
-            tempo_lines.append((p1, p2))
+            tempo_lines.append((p1, p2, tick_info.label_id))
 
         return tempo_lines
 
@@ -756,7 +779,7 @@ class ChartAxesAnnotator(BaseImageAnnotator):
                     p1 = (int(tick_info.position), int(y_tick - tick_length))
                     p2 = (int(tick_info.position), int(y_tick + tick_length))
 
-                    tempo_lines.append((p1, p2))
+                    tempo_lines.append((p1, p2, tick_info.label_id))
 
                     # check if adding shadows ...
                     if self.edition_mode == ChartAxesAnnotator.ModeTicksSelect and self.tempo_tick_idx == idx:
@@ -774,7 +797,7 @@ class ChartAxesAnnotator(BaseImageAnnotator):
                 for idx, tick_info in enumerate(self.tempo_ticks):
                     p1 = (int(x_ticks - tick_length), int(tick_info.position))
                     p2 = (int(x_ticks + tick_length), int(tick_info.position))
-                    tempo_lines.append((p1, p2))
+                    tempo_lines.append((p1, p2, tick_info.label_id))
 
                     # check if adding shadows ...
                     if self.edition_mode == ChartAxesAnnotator.ModeTicksSelect and self.tempo_tick_idx == idx:
@@ -837,7 +860,7 @@ class ChartAxesAnnotator(BaseImageAnnotator):
                 tempo_lines += self.axis_ticks_lines(tempo_axis, False, x2, tick_length)
 
         # draw all tick lines ...
-        for idx, (p1, p2) in enumerate(tempo_lines):
+        for idx, (p1, p2, label_id) in enumerate(tempo_lines):
             if self.edition_mode == ChartAxesAnnotator.ModeLabelPerTickSelect:
                 if idx == self.tempo_tick_idx:
                     # red for selected tick
@@ -849,8 +872,13 @@ class ChartAxesAnnotator(BaseImageAnnotator):
                 # add ticks on changing colors ...
                 tick_color = self.canvas_select.colors[idx % len(self.canvas_select.colors)]
             else:
-                # add all ticks in red
-                tick_color = (255, 0, 0)
+                # check if tick has label ...
+                if label_id is None:
+                    # add ticks in red
+                    tick_color = (255, 0, 0)
+                else:
+                    # tick has label, add in orange ..
+                    tick_color = (255, 128, 64)
 
             cv2.line(modified_image, p1, p2, tick_color, thickness=2)
 
@@ -1027,6 +1055,9 @@ class ChartAxesAnnotator(BaseImageAnnotator):
         self.container_ticks_buttons.visible = (self.edition_mode == ChartAxesAnnotator.ModeTicksEdit)
         self.container_labels_buttons.visible = (self.edition_mode == ChartAxesAnnotator.ModeLabelsEdit)
         self.container_labels_per_tick_buttons.visible = (self.edition_mode == ChartAxesAnnotator.ModeLabelPerTickEdit)
+        self.container_preview_buttons.visible = self.edition_mode in [ChartAxesAnnotator.ModeBBoxSelect,
+                                                                       ChartAxesAnnotator.ModeBBoxEdit,
+                                                                       ChartAxesAnnotator.ModeTicksSelect]
 
         # Confirm panel and buttons  ...
         self.container_confirm_buttons.visible = self.edition_mode in [ChartAxesAnnotator.ModeBBoxSelect,
@@ -2019,3 +2050,66 @@ class ChartAxesAnnotator(BaseImageAnnotator):
         self.tempo_axis_values.scale_type = int(self.lbx_info_scale_type.selected_option_value)
 
         self.set_editor_mode(ChartAxesAnnotator.ModeAxisEdit)
+
+    def img_main_mouse_motion(self, screen_img, pos, rel, buttons):
+        if self.edition_mode in [ChartAxesAnnotator.ModeBBoxSelect, ChartAxesAnnotator.ModeBBoxEdit,
+                                 ChartAxesAnnotator.ModeTicksSelect]:
+            mouse_x, mouse_y = pos
+
+            # TODO: abstract the whole ZOOM window into the main class
+            img_pixel_x = int(round(mouse_x / self.view_scale))
+            img_pixel_y = int(round(mouse_y / self.view_scale))
+
+            sel_rect = self.canvas_select.elements["selection_rectangle"]
+            if self.canvas_select.drag_type == 1:
+                # dragging top-left corner of the selection rectangle ...
+                ref_pixel_x = int(round(sel_rect.x / self.view_scale))
+                ref_pixel_y = int(round(sel_rect.y / self.view_scale))
+            elif self.canvas_select.drag_type == 2:
+                # dragging top-right corner of the selection rectangle ...
+                ref_pixel_x = int(round((sel_rect.x + sel_rect.w) / self.view_scale))
+                ref_pixel_y = int(round(sel_rect.y / self.view_scale))
+            elif self.canvas_select.drag_type == 3:
+                # dragging bottom-left corner of the selection rectangle...
+                ref_pixel_x = int(round(sel_rect.x / self.view_scale))
+                ref_pixel_y = int(round((sel_rect.y + sel_rect.h) / self.view_scale))
+            elif self.canvas_select.drag_type == 4:
+                # dragging bottom-right corner of the selection rectangle...
+                ref_pixel_x = int(round((sel_rect.x + sel_rect.w) / self.view_scale))
+                ref_pixel_y = int(round((sel_rect.y + sel_rect.h) / self.view_scale))
+            else:
+                # use current mouse position as the default reference point
+                ref_pixel_x = img_pixel_x
+                ref_pixel_y = img_pixel_y
+
+            zoom_pixels = 20
+            if img_pixel_x + zoom_pixels > self.base_rgb_image.shape[1]:
+                img_pixel_x = self.base_rgb_image.shape[1] - zoom_pixels
+            elif img_pixel_x - zoom_pixels < 0:
+                img_pixel_x = zoom_pixels
+
+            if img_pixel_y + zoom_pixels > self.base_rgb_image.shape[0]:
+                img_pixel_y = self.base_rgb_image.shape[0] - zoom_pixels
+            elif img_pixel_y - zoom_pixels < 0:
+                img_pixel_y = zoom_pixels
+
+            cut_min_x = img_pixel_x - zoom_pixels
+            cut_max_x = img_pixel_x + zoom_pixels
+            cut_min_y = img_pixel_y - zoom_pixels
+            cut_max_y = img_pixel_y + zoom_pixels
+            zoom_cut = self.base_rgb_image[cut_min_y:cut_max_y, cut_min_x:cut_max_x].copy()
+
+            # decrease color contrast
+            zoom_cut = zoom_cut.astype(np.float64)
+            zoom_cut /= 2
+            zoom_cut += 63
+            zoom_cut = zoom_cut.astype(np.uint8)
+
+            # highlight the center pixel by default ...
+            if ref_pixel_y - cut_min_y < zoom_cut.shape[0]:
+                zoom_cut[ref_pixel_y - cut_min_y, :] = (255, 0, 0)
+            if ref_pixel_x - cut_min_x < zoom_cut.shape[1]:
+                zoom_cut[:, ref_pixel_x - cut_min_x] = (255, 0, 0)
+
+            self.img_preview.set_image(zoom_cut, 200, 200)
+

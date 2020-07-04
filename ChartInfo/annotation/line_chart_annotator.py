@@ -20,10 +20,11 @@ class LineChartAnnotator(BaseImageAnnotator):
     ModeNumberEdit = 1
     ModeLineSelect = 2
     ModeLineEdit = 3
-    ModePointAdd = 4
-    ModePointEdit = 5
-    ModeConfirmNumberOverwrite = 6
-    ModeConfirmExit = 7
+    ModeLineSwap = 4
+    ModePointAdd = 5
+    ModePointEdit = 6
+    ModeConfirmNumberOverwrite = 7
+    ModeConfirmExit = 8
 
     DoubleClickMaxPointDistance = 5
 
@@ -89,7 +90,16 @@ class LineChartAnnotator(BaseImageAnnotator):
         self.lbl_data_title = None
         self.lbx_data_series_values = None
         self.btn_data_series_edit = None
+        self.btn_data_series_swap = None
         self.btn_data_return = None
+
+        self.container_swap_buttons = None
+        self.lbl_swap_title = None
+        self.lbl_swap_name = None
+        self.lbl_swap_other = None
+        self.lbx_swap_series_values = None
+        self.btn_swap_return_cancel = None
+        self.btn_swap_return_accept = None
 
         self.container_line_buttons = None
         self.lbl_line_title = None
@@ -254,7 +264,7 @@ class LineChartAnnotator(BaseImageAnnotator):
 
         # ==============================
         # data annotation options
-        self.container_data_buttons = ScreenContainer("container_data_buttons", (container_width, 380),
+        self.container_data_buttons = ScreenContainer("container_data_buttons", (container_width, 430),
                                                       back_color=darker_background)
         self.container_data_buttons.position = (self.container_view_buttons.get_left(),
                                                 self.container_view_buttons.get_bottom() + 20)
@@ -278,13 +288,64 @@ class LineChartAnnotator(BaseImageAnnotator):
         self.btn_data_series_edit.click_callback = self.btn_data_series_edit_click
         self.container_data_buttons.append(self.btn_data_series_edit)
 
+        self.btn_data_series_swap = ScreenButton("btn_data_series_swap", "Swap Points", 21, button_width)
+        self.btn_data_series_swap.set_colors(button_text_color, button_back_color)
+        self.btn_data_series_swap.position = (button_left, self.btn_data_series_edit.get_bottom() + 10)
+        self.btn_data_series_swap.click_callback = self.btn_data_series_swap_click
+        self.container_data_buttons.append(self.btn_data_series_swap)
+
         self.btn_data_return = ScreenButton("btn_data_return", "Return", 21, button_width)
         self.btn_data_return.set_colors(button_text_color, button_back_color)
-        self.btn_data_return.position = (button_left, self.btn_data_series_edit.get_bottom() + 20)
+        self.btn_data_return.position = (button_left, self.btn_data_series_swap.get_bottom() + 20)
         self.btn_data_return.click_callback = self.btn_data_return_click
         self.container_data_buttons.append(self.btn_data_return)
 
         self.container_data_buttons.visible = False
+
+        # ==============================
+        self.container_swap_buttons = ScreenContainer("container_swap_buttons", (container_width, 450),
+                                                      back_color=darker_background)
+        self.container_swap_buttons.position = (self.container_view_buttons.get_left(),
+                                                self.container_view_buttons.get_bottom() + 20)
+        self.elements.append(self.container_swap_buttons)
+
+        self.lbl_swap_title = ScreenLabel("lbl_swap_title", "Swap Line Points", 25, 290, 1)
+        self.lbl_swap_title.position = (5, 5)
+        self.lbl_swap_title.set_background(darker_background)
+        self.lbl_swap_title.set_color(self.text_color)
+        self.container_swap_buttons.append(self.lbl_swap_title)
+
+        self.lbl_swap_name = ScreenLabel("lbl_swap_name", "[Data series]", 18, 290, 1)
+        self.lbl_swap_name.position = (5, self.lbl_swap_title.get_bottom() + 20)
+        self.lbl_swap_name.set_background(darker_background)
+        self.lbl_swap_name.set_color(self.text_color)
+        self.container_swap_buttons.append(self.lbl_swap_name)
+
+        self.lbl_swap_other = ScreenLabel("lbl_swap_other", "Select Second Line", 18, 290, 1)
+        self.lbl_swap_other.position = (5, self.lbl_swap_name.get_bottom() + 20)
+        self.lbl_swap_other.set_background(darker_background)
+        self.lbl_swap_other.set_color(self.text_color)
+        self.container_swap_buttons.append(self.lbl_swap_other)
+
+        self.lbx_swap_series_values = ScreenTextlist("lbx_swap_series_values", (container_width - 20, 210), 18,
+                                                     back_color=(255, 255, 255), option_color=(0, 0, 0),
+                                                     selected_back=(120, 80, 50), selected_color=(255, 255, 255))
+        self.lbx_swap_series_values.position = (10, self.lbl_swap_other.get_bottom() + 10)
+        # self.lbx_swap_series_values.selected_value_change_callback = self.lbx_swap_series_values_changed
+        self.container_swap_buttons.append(self.lbx_swap_series_values)
+
+        self.btn_swap_return_accept = ScreenButton("btn_swap_return_accept", "Accept", 21, button_2_width)
+        self.btn_swap_return_accept.set_colors(button_text_color, button_back_color)
+        self.btn_swap_return_accept.position = (button_2_left, self.lbx_swap_series_values.get_bottom() + 20)
+        self.btn_swap_return_accept.click_callback = self.btn_swap_return_accept_click
+        self.container_swap_buttons.append(self.btn_swap_return_accept)
+
+        self.btn_swap_return_cancel = ScreenButton("btn_swap_return_cancel", "Cancel", 21, button_2_width)
+        self.btn_swap_return_cancel.set_colors(button_text_color, button_back_color)
+        self.btn_swap_return_cancel.position = (button_2_right, self.lbx_swap_series_values.get_bottom() + 20)
+        self.btn_swap_return_cancel.click_callback = self.btn_swap_return_cancel_click
+        self.container_swap_buttons.append(self.btn_swap_return_cancel)
+
 
         # ==============================
         # line annotation options
@@ -553,7 +614,7 @@ class LineChartAnnotator(BaseImageAnnotator):
         self.fill_data_series_list(self.lbx_number_series_values)
         self.create_canvas_lines()
 
-    def fill_data_series_list(self, text_list):
+    def fill_data_series_list(self, text_list, exclude_values=None):
         text_list.clear_options()
         for idx, current_text in enumerate(self.data.data_series):
             if current_text is None:
@@ -561,7 +622,8 @@ class LineChartAnnotator(BaseImageAnnotator):
             else:
                 display_value = "{0:d}: {1:s}".format(idx + 1, current_text.value)
 
-            text_list.add_option(str(idx), display_value)
+            if exclude_values is None or idx not in exclude_values:
+                text_list.add_option(str(idx), display_value)
 
     def line_points_to_canvas_points(self, line_points):
         x1, y1, x2, y2 = self.panel_info.axes.bounding_box
@@ -602,6 +664,7 @@ class LineChartAnnotator(BaseImageAnnotator):
         self.container_data_buttons.visible = (self.edition_mode == LineChartAnnotator.ModeLineSelect)
         self.container_line_buttons.visible = (self.edition_mode == LineChartAnnotator.ModeLineEdit)
         self.container_preview_buttons.visible = (self.edition_mode == LineChartAnnotator.ModePointAdd)
+        self.container_swap_buttons.visible = (self.edition_mode == LineChartAnnotator.ModeLineSwap)
 
         # Confirm panel and buttons  ...
         self.container_confirm_buttons.visible = self.edition_mode in [LineChartAnnotator.ModeConfirmNumberOverwrite,
@@ -766,27 +829,81 @@ class LineChartAnnotator(BaseImageAnnotator):
                 if distance < LineChartAnnotator.DoubleClickMaxPointDistance:
                     self.delete_tempo_line_point(point_idx)
 
+        elif self.edition_mode in [LineChartAnnotator.ModeNavigate, LineChartAnnotator.ModeLineSelect]:
+            rel_x, rel_y = position
+            rel_x /= self.view_scale
+            rel_y /= self.view_scale
+
+            for idx, current_text in enumerate(self.data.data_series):
+                if current_text is not None:
+                    # line_id = "line_" + str(idx)
+
+                    if current_text.area_contains_point(rel_x, rel_y):
+                        if self.edition_mode == LineChartAnnotator.ModeNavigate:
+                            # simulate click on edit to move to ModeLineSelect
+                            self.btn_edit_data_click(self.btn_edit_data)
+
+                        self.lbx_data_series_values.change_option_selected(str(idx))
+                        self.btn_data_series_edit_click(self.btn_data_series_edit)
+                        break
+
+                        # self.canvas_display.change_selected_element(line_id)
+
+        elif self.edition_mode == LineChartAnnotator.ModePointEdit:
+            if button == 3:
+                # go back to previous mode ...
+                self.btn_confirm_cancel_click(self.btn_confirm_cancel)
+
     def canvas_display_object_edited(self, canvas, element_name):
         pass
 
+    def btn_data_series_swap_click(self, button):
+        if self.lbx_data_series_values.selected_option_value is None:
+            print("Must select a data series")
+            return
+
+        if len(self.data.lines) < 2:
+            print("There are no other lines to swap points with")
+            return
+
+        option_idx = int(self.lbx_data_series_values.selected_option_value)
+
+        # prepare temporals
+        self.tempo_line_index = option_idx
+
+        # series name ...
+        display = self.lbx_data_series_values.option_display[self.lbx_data_series_values.selected_option_value]
+        self.lbl_swap_name.set_text(display)
+
+        # ... list of other data series ...
+        self.fill_data_series_list(self.lbx_swap_series_values, [option_idx])
+        # self.update_points_list()
+
+        # canvas
+        # self.canvas_show_hide_lines(option_idx)
+        # self.canvas_display.locked = True
+
+        self.set_editor_mode(LineChartAnnotator.ModeLineSwap)
+        self.update_current_view(False)
+
     def img_main_mouse_motion(self, screen_img, pos, rel, buttons):
+        mouse_x, mouse_y = pos
+
+        img_pixel_x = int(round(mouse_x / self.view_scale))
+        img_pixel_y = int(round(mouse_y / self.view_scale))
+
         if self.edition_mode in [LineChartAnnotator.ModePointAdd]:
-            mouse_x, mouse_y = pos
-
-            img_pixel_x = int(round(mouse_x / self.view_scale))
-            img_pixel_y = int(round(mouse_y / self.view_scale))
-
             zoom_pixels = 20
             zoom_border = 2
             blur_size = 5
             min_dist = 5
             if img_pixel_x + zoom_pixels > self.base_rgb_image.shape[1]:
-                img_pixel_x = self.base_rgb_image.shape[1] - zoom_pixels * 2
+                img_pixel_x = self.base_rgb_image.shape[1] - zoom_pixels
             elif img_pixel_x - zoom_pixels < 0:
                 img_pixel_x = zoom_pixels
 
             if img_pixel_y + zoom_pixels > self.base_rgb_image.shape[0]:
-                img_pixel_y = self.base_rgb_image.shape[0] - zoom_pixels * 2
+                img_pixel_y = self.base_rgb_image.shape[0] - zoom_pixels
             elif img_pixel_y - zoom_pixels < 0:
                 img_pixel_y = zoom_pixels
 
@@ -852,6 +969,8 @@ class LineChartAnnotator(BaseImageAnnotator):
             rel_x = min_idx % zoom_cut.shape[1]
             rel_y = int(min_idx / zoom_cut.shape[0])
 
+            # print((sqr_diff[rel_y, rel_x], zoom_cut[rel_y, rel_x], self.tempo_median_line_color))
+
             if sqr_diff[rel_y, rel_x] < 10000:
                 # print("A")
                 # the color is similar enough ... add suggestion
@@ -877,3 +996,46 @@ class LineChartAnnotator(BaseImageAnnotator):
 
             self.img_preview.set_image(zoom_cut, 200, 200)
 
+        elif self.edition_mode in [LineChartAnnotator.ModeNavigate, LineChartAnnotator.ModeLineSelect]:
+            # determine if the mouse pointer is over sme specific line ...
+
+            for idx, current_text in enumerate(self.data.data_series):
+                if current_text is not None:
+                    line_id = "line_" + str(idx)
+
+                    if current_text.area_contains_point(img_pixel_x, img_pixel_y):
+                        self.canvas_display.change_selected_element(line_id)
+
+    def btn_swap_return_accept_click(self, button):
+        if self.lbx_swap_series_values.selected_option_value is None:
+            print("Must select a data series")
+            return
+
+        src_idx = self.tempo_line_index
+        dst_idx = int(self.lbx_swap_series_values.selected_option_value)
+
+        # swap the line data ...
+        print("Swapping line #{0:d} with #{1:d}".format(src_idx, dst_idx))
+
+        copy_src = LineValues.Copy(self.data.lines[src_idx])
+        copy_dst = LineValues.Copy(self.data.lines[dst_idx])
+
+        self.data.lines[src_idx] = copy_dst
+        self.data.lines[dst_idx] = copy_src
+
+        self.data_changed = True
+
+        # update the canvas
+        pl_points = self.line_points_to_canvas_points(self.data.lines[src_idx].points)
+        self.canvas_display.update_polyline_element("line_" + str(src_idx), pl_points, True)
+
+        pl_points = self.line_points_to_canvas_points(self.data.lines[dst_idx].points)
+        self.canvas_display.update_polyline_element("line_" + str(dst_idx), pl_points, True)
+
+        self.canvas_show_hide_lines(-1)
+
+        # go back to the main mode ...
+        self.set_editor_mode(LineChartAnnotator.ModeLineSelect)
+
+    def btn_swap_return_cancel_click(self, button):
+        self.set_editor_mode(LineChartAnnotator.ModeLineSelect)

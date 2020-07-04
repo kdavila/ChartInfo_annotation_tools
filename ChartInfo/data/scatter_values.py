@@ -29,7 +29,7 @@ class ScatterValues:
     def contains_point(self, x, y):
         if len(self.points) == 0:
             return False
-        
+
         raw_diff = np.array(self.points) - np.array([[x, y]])
         all_distances = np.linalg.norm(raw_diff, axis=1)
 

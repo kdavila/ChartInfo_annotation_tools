@@ -102,6 +102,20 @@ Example:
 	# This will generate a testing dataset for Task 3  
 	python chart_json_export.py data/images data/annotations data/task3_json 3 0
 
+## Update (July 3, 2020)
+ - Minor improvements on Axis Annotation
+   - Zoom-in shown on right side panel:
+	 - when setting or editing the axes bounding box
+	 - when setting the new position of a given tick
+   - Ticks are now displayed on red by default if they do not have associated labels. Otherwise, they are shown in dark orange.
+- Minor improvements on Line Chart Data Annotation
+  - It is now possible to swap data points between lines
+  - For text regions containing line names (e.g. from the legend or from data mark labels):
+    - Moving the mouse over them will highlight  the corresponding line.
+	- Double click over them will make the tool go to the edition mode menu for that line. 
+  - Double right-click can now be used to stop the "line point edition" mode.   
+
+
 ## Update (June 28, 2020)
   - Minor improvements to data annotations
     - In some cases, legend boxes will be automatically inferred from image
