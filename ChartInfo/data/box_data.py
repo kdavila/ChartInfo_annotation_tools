@@ -239,6 +239,10 @@ class BoxData:
         # most common grouping ...
         grouping = BoxData.GroupingByCategory
 
+        if len(categories) == 0:
+            # create an empty category by default
+            categories = [None]
+
         category_width = axis_range / len(categories)
         box_width = round(category_width / (len(data_series) + 1), 1)
         box_offset = round(box_width / 2, 1)
