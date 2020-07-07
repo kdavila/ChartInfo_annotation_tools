@@ -102,6 +102,13 @@ Example:
 	# This will generate a testing dataset for Task 3  
 	python chart_json_export.py data/images data/annotations data/task3_json 3 0
 
+## Update (July 7, 2020)
+ - Minor improvements on Line Chart Data Annotation
+   - For text regions containing data series names (e.g. from the legend):
+    - Double click over them will make the tool go to the edition mode menu for that line. 
+ - Added Inverted color view modes. 
+ - Bug fix for Box plot annotator to handle properly charts without categorical values using a single unnamed default category
+
 ## Update (July 3, 2020)
  - Minor improvements on Axis Annotation
    - Zoom-in shown on right side panel:

@@ -12,14 +12,17 @@ from AM_CommonTools.interface.controls.screen_canvas import ScreenCanvas
 class BaseImageAnnotator(Screen):
     # four view modes for the image ...
     ViewModeRawData = 0
-    ViewModeGrayData = 1
-    ViewModeRawNoData = 2
-    ViewModeGrayNoData = 3
+    ViewModeInvertedData = 1
+    ViewModeGrayData = 2
+    ViewModeRawNoData = 3
+    ViewModeInvertedNoData = 4
+    ViewModeGrayNoData = 5
 
     def __init__(self, title, size):
         Screen.__init__(self, title, size)
 
         self.base_rgb_image = None
+        self.base_inv_image = None
         self.base_gray_image = None
 
         self.view_mode = BaseImageAnnotator.ViewModeRawData
@@ -31,9 +34,14 @@ class BaseImageAnnotator(Screen):
         self.btn_zoom_increase = None
         self.btn_zoom_zero = None
 
+        self.lbl_view_data = None
         self.btn_view_raw_data = None
+        self.btn_view_inv_data = None
         self.btn_view_gray_data = None
+
+        self.lbl_view_clear = None
         self.btn_view_raw_clear = None
+        self.btn_view_inv_clear = None
         self.btn_view_gray_clear = None
 
         self.container_images = None
@@ -80,27 +88,64 @@ class BaseImageAnnotator(Screen):
         self.btn_zoom_zero.click_callback = self.btn_zoom_zero_click
         self.container_view_buttons.append(self.btn_zoom_zero)
 
-        self.btn_view_raw_data = ScreenButton("btn_view_raw_data", "RGB Data", 21, button_2_width)
+        # ---
+        # Data views
+
+        button_4_width = 65
+        button_4_gap = int((container_width - 20 - button_4_width * 4) / 3)
+        button_4_left_1 = 10
+        button_4_left_2 = 10 + (button_4_width + button_4_gap)
+        button_4_left_3 = 10 + (button_4_width + button_4_gap) * 2
+        button_4_left_4 = 10 + (button_4_width + button_4_gap) * 3
+
+        self.lbl_view_data = ScreenLabel("lbl_view_data", "Data", 18, button_4_width)
+        self.lbl_view_data.position = (button_4_left_1, self.btn_zoom_zero.get_bottom() + 10)
+        self.lbl_view_data.set_background(general_background)
+        self.lbl_view_data.set_color(text_color)
+        self.container_view_buttons.append(self.lbl_view_data)
+
+        self.btn_view_raw_data = ScreenButton("btn_view_raw_data", "RGB", 18, button_4_width)
         self.btn_view_raw_data.set_colors(button_text_color, button_back_color)
-        self.btn_view_raw_data.position = (button_2_left, self.btn_zoom_zero.get_bottom() + 10)
+        self.btn_view_raw_data.position = (button_4_left_2, self.btn_zoom_zero.get_bottom() + 10)
         self.btn_view_raw_data.click_callback = self.btn_view_raw_data_click
         self.container_view_buttons.append(self.btn_view_raw_data)
 
-        self.btn_view_gray_data = ScreenButton("btn_view_gray", "Gray Data", 21, button_2_width)
+        self.btn_view_inv_data = ScreenButton("btn_view_inv_data", "INV", 18, button_4_width)
+        self.btn_view_inv_data.set_colors(button_text_color, button_back_color)
+        self.btn_view_inv_data.position = (button_4_left_3, self.btn_zoom_zero.get_bottom() + 10)
+        self.btn_view_inv_data.click_callback = self.btn_view_inv_data_click
+        self.container_view_buttons.append(self.btn_view_inv_data)
+
+        self.btn_view_gray_data = ScreenButton("btn_view_gray", "Gray", 18, button_4_width)
         self.btn_view_gray_data.set_colors(button_text_color, button_back_color)
-        self.btn_view_gray_data.position = (button_2_right, self.btn_zoom_zero.get_bottom() + 10)
+        self.btn_view_gray_data.position = (button_4_left_4, self.btn_zoom_zero.get_bottom() + 10)
         self.btn_view_gray_data.click_callback = self.btn_view_gray_data_click
         self.container_view_buttons.append(self.btn_view_gray_data)
 
-        self.btn_view_raw_clear = ScreenButton("btn_view_raw_clear", "RGB Clear", 21, button_2_width)
+        # ------
+        # clear views ...
+
+        self.lbl_view_clear = ScreenLabel("lbl_view_clear", "Clear", 18, button_4_width)
+        self.lbl_view_clear.position = (button_4_left_1, self.btn_view_raw_data.get_bottom() + 10)
+        self.lbl_view_clear.set_background(general_background)
+        self.lbl_view_clear.set_color(text_color)
+        self.container_view_buttons.append(self.lbl_view_clear)
+
+        self.btn_view_raw_clear = ScreenButton("btn_view_raw_clear", "RGB", 21, button_4_width)
         self.btn_view_raw_clear.set_colors(button_text_color, button_back_color)
-        self.btn_view_raw_clear.position = (button_2_left, self.btn_view_raw_data.get_bottom() + 10)
+        self.btn_view_raw_clear.position = (button_4_left_2, self.btn_view_raw_data.get_bottom() + 10)
         self.btn_view_raw_clear.click_callback = self.btn_view_raw_clear_click
         self.container_view_buttons.append(self.btn_view_raw_clear)
 
-        self.btn_view_gray_clear = ScreenButton("btn_view_gray_clear", "Gray Clear", 21, button_2_width)
+        self.btn_view_inv_clear = ScreenButton("btn_view_inv_clear", "INV", 21, button_4_width)
+        self.btn_view_inv_clear.set_colors(button_text_color, button_back_color)
+        self.btn_view_inv_clear.position = (button_4_left_3, self.btn_view_raw_data.get_bottom() + 10)
+        self.btn_view_inv_clear.click_callback = self.btn_view_inv_clear_click
+        self.container_view_buttons.append(self.btn_view_inv_clear)
+
+        self.btn_view_gray_clear = ScreenButton("btn_view_gray_clear", "Gray", 21, button_4_width)
         self.btn_view_gray_clear.set_colors(button_text_color, button_back_color)
-        self.btn_view_gray_clear.position = (button_2_right, self.btn_view_raw_data.get_bottom() + 10)
+        self.btn_view_gray_clear.position = (button_4_left_4, self.btn_view_raw_data.get_bottom() + 10)
         self.btn_view_gray_clear.click_callback = self.btn_view_gray_clear_click
         self.container_view_buttons.append(self.btn_view_gray_clear)
 
@@ -166,12 +211,20 @@ class BaseImageAnnotator(Screen):
         self.view_mode = BaseImageAnnotator.ViewModeRawData
         self.update_current_view()
 
+    def btn_view_inv_data_click(self, button):
+        self.view_mode = BaseImageAnnotator.ViewModeInvertedData
+        self.update_current_view()
+
     def btn_view_gray_data_click(self, button):
         self.view_mode = BaseImageAnnotator.ViewModeGrayData
         self.update_current_view()
 
     def btn_view_raw_clear_click(self, button):
         self.view_mode = BaseImageAnnotator.ViewModeRawNoData
+        self.update_current_view()
+
+    def btn_view_inv_clear_click(self, button):
+        self.view_mode = BaseImageAnnotator.ViewModeInvertedNoData
         self.update_current_view()
 
     def btn_view_gray_clear_click(self, button):
@@ -230,6 +283,10 @@ class BaseImageAnnotator(Screen):
         if self.view_mode in [BaseImageAnnotator.ViewModeGrayData, BaseImageAnnotator.ViewModeGrayNoData]:
             # gray scale mode
             base_image = self.base_gray_image
+        elif self.view_mode in [BaseImageAnnotator.ViewModeInvertedData, BaseImageAnnotator.ViewModeInvertedNoData]:
+            if self.base_inv_image is None:
+                self.base_inv_image = 255 - self.base_rgb_image
+            base_image = self.base_inv_image
         else:
             base_image = self.base_rgb_image
 
@@ -237,7 +294,8 @@ class BaseImageAnnotator(Screen):
 
         modified_image = base_image.copy()
 
-        if self.view_mode in [BaseImageAnnotator.ViewModeRawData, BaseImageAnnotator.ViewModeGrayData]:
+        if self.view_mode in [BaseImageAnnotator.ViewModeRawData, BaseImageAnnotator.ViewModeInvertedData,
+                              BaseImageAnnotator.ViewModeGrayData]:
             self.canvas_display.visible = True
 
             # This function must be implemented by the child class

@@ -845,6 +845,26 @@ class ScatterChartAnnotator(BaseImageAnnotator):
                 if distance < ScatterChartAnnotator.DoubleClickMaxPointDistance:
                     self.delete_tempo_scatter_point(point_idx)
 
+        elif self.edition_mode in [ScatterChartAnnotator.ModeNavigate, ScatterChartAnnotator.ModeSeriesSelect]:
+            rel_x, rel_y = position
+            rel_x /= self.view_scale
+            rel_y /= self.view_scale
+
+            for idx, current_text in enumerate(self.data.data_series):
+                if current_text is not None:
+                    # line_id = "line_" + str(idx)
+
+                    if current_text.area_contains_point(rel_x, rel_y):
+                        if self.edition_mode == ScatterChartAnnotator.ModeNavigate:
+                            # simulate click on edit to move to ModeSeriesSelect
+                            self.btn_edit_data_click(self.btn_edit_data)
+
+                        self.lbx_data_series_values.change_option_selected(str(idx))
+                        self.btn_data_series_edit_click(self.btn_data_series_edit)
+                        break
+
+                        # self.canvas_display.change_selected_element(line_id)
+
     def img_main_mouse_motion(self, screen_img, pos, rel, buttons):
         if self.edition_mode in [ScatterChartAnnotator.ModeSeriesEdit, ScatterChartAnnotator.ModePointAdd]:
             mouse_x, mouse_y = pos
