@@ -110,13 +110,13 @@ Example:
      - Box Charts 
      - Line Charts
      - Scatter Charts
- = Added partial support for additional Chart types included in CHART-Info 2020
+ - Added partial support for additional Chart types included in ICPR 2020 - CHART-Infographics
    - These can have annotationss of text, axes and legends but data annotation is not yet implemented
- - Added the Auto-Check to help detect annotation errors
-   - Based on Export Function
-   - Full parsing of chart based on annotations is attempted
-   - Annnotations errors found by the exporter are then reported to the user
-   - Attempt, Success and Failure of Auto-checks are now recorded within the annotation
+ - Added the "Auto-Check" function to help detect annotation errors
+   - This feature is based on the same parsing functions used by the exporter
+   - Full chart parsing based on user annotations is attempted
+   - Errors found by the exporter are then reported to the annotator
+   - Annotations now record if Auto-check has been used and if it was a Success or a Failure
    - The Chart Stats tools can be used to get a report on Auto-checks for a given set of charts
 ## Update (July 7, 2020)
  - Minor improvements on Line Chart Data Annotation
