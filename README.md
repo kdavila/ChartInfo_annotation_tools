@@ -102,6 +102,22 @@ Example:
 	# This will generate a testing dataset for Task 3  
 	python chart_json_export.py data/images data/annotations data/task3_json 3 0
 
+## Update (July 28, 2020)
+ - Extended, re-factored and improved JSON export
+   - New validations added for Task 4
+   - Added parsing-based generation of GT for Tasks 6a, 6b and 7 for:
+     - Bar Charts
+     - Box Charts 
+     - Line Charts
+     - Scatter Charts
+ = Added partial support for additional Chart types included in CHART-Info 2020
+   - These can have annotationss of text, axes and legends but data annotation is not yet implemented
+ - Added the Auto-Check to help detect annotation errors
+   - Based on Export Function
+   - Full parsing of chart based on annotations is attempted
+   - Annnotations errors found by the exporter are then reported to the user
+   - Attempt, Success and Failure of Auto-checks are now recorded within the annotation
+   - The Chart Stats tools can be used to get a report on Auto-checks for a given set of charts
 ## Update (July 7, 2020)
  - Minor improvements on Line Chart Data Annotation
    - For text regions containing data series names (e.g. from the legend):

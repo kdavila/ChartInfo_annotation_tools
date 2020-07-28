@@ -55,6 +55,71 @@ class BoxValues:
 
         self.whiskers_min = new_value
 
+    def get_box_lines(self, box_baseline, box_start, box_end, box_vertical):
+        # a box can be drawn using 14 points
+        # 4 define the main box (b_....)
+        # 2 required for median (m_....)
+        # 4 for bottom whisker  (wb_....)
+        # 4 for top whisker     (wt_....)
+
+        box_mid = (box_start + box_end) / 2
+
+        if box_vertical:
+            b_min = box_baseline - self.box_min
+            b_med = box_baseline - self.box_median
+            b_max = box_baseline - self.box_max
+            w_min = box_baseline - self.whiskers_min
+            w_max = box_baseline - self.whiskers_max
+
+            b_min_start = (box_start, b_min)
+            b_max_start = (box_start, b_max)
+            b_max_end = (box_end, b_max)
+            b_min_end = (box_end, b_min)
+
+            b_med_start = (box_start, b_med)
+            b_med_end = (box_end, b_med)
+
+            wb_box_mid = (box_mid, b_min)
+            wb_line_mid = (box_mid, w_min)
+            wb_line_start = (box_start, w_min)
+            wb_line_end = (box_end, w_min)
+
+            wt_box_mid = (box_mid, b_max)
+            wt_line_mid = (box_mid, w_max)
+            wt_line_start = (box_start, w_max)
+            wt_line_end = (box_end, w_max)
+        else:
+            b_min = box_baseline + self.box_min
+            b_med = box_baseline + self.box_median
+            b_max = box_baseline + self.box_max
+            w_min = box_baseline + self.whiskers_min
+            w_max = box_baseline + self.whiskers_max
+
+            b_min_start = (b_min, box_start)
+            b_max_start = (b_max, box_start)
+            b_max_end = (b_max, box_end)
+            b_min_end = (b_min, box_end)
+
+            b_med_start = (b_med, box_start)
+            b_med_end = (b_med, box_end)
+
+            wb_box_mid = (b_min, box_mid)
+            wb_line_mid = (w_min, box_mid)
+            wb_line_start = (w_min, box_start)
+            wb_line_end = (w_min, box_end)
+
+            wt_box_mid = (b_max, box_mid)
+            wt_line_mid = (w_max, box_mid)
+            wt_line_start = (w_max, box_start)
+            wt_line_end = (w_max, box_end)
+
+        box_polygon = (b_min_start, b_max_start, b_max_end, b_min_end)
+        box_median = (b_med_start, b_med_end)
+        whisker_bottom = (wb_box_mid, wb_line_mid, wb_line_start, wb_line_end)
+        whisker_top = (wt_box_mid, wt_line_mid, wt_line_start, wt_line_end)
+
+        return box_polygon, box_median, whisker_bottom, whisker_top
+
     @staticmethod
     def Copy(other):
         assert isinstance(other, BoxValues)

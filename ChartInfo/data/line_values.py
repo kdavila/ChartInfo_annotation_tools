@@ -1,5 +1,6 @@
 
 import numpy as np
+from scipy import interpolate
 
 from shapely.geometry import LineString, Point
 
@@ -18,6 +19,42 @@ class LineValues:
 
     def __init__(self):
         self.points = []
+
+        self.cache_line_interp = None
+
+    def get_all_x_values(self):
+        # get all unique x values (sorted)
+        # note that set is required for older annotations produced before adding constrains forcing points to be unique
+        tempo_array = np.array(self.points)
+        raw_x_values = list(set(tempo_array[:, 0].tolist()))
+        return sorted(raw_x_values)
+
+    def get_y_value(self, x_Value):
+        if self.cache_line_interp is None:
+            tempo_sorted = sorted(self.points)
+
+            last_val_x = None
+            valid_unique_x = []
+            valid_unique_y = []
+            for x, y in tempo_sorted:
+                if x != last_val_x:
+                    last_val_x = x
+                    valid_unique_x.append(x)
+                    valid_unique_y.append(y)
+
+            self.cache_line_interp = interpolate.interp1d(valid_unique_x, valid_unique_y, 'linear',
+                                                          fill_value='extrapolate')
+
+        return self.cache_line_interp(x_Value)
+
+    def get_line_relative_bbox(self):
+        point_array = np.array(self.points)
+        min_x = point_array[:, 0].min()
+        max_x = point_array[:, 0].max()
+        min_y = point_array[:, 1].min()
+        max_y = point_array[:, 1].max()
+
+        return min_x, min_y, max_x, max_y
 
     def closest_point(self, in_x, in_y):
         if len(self.points) == 0:

@@ -17,6 +17,17 @@ class ChartInfo:
     TypeBar = 3
     TypeBox = 4
 
+    # Types which are only partially supported
+    TypePie = 11
+    TypeScatterLine = 12
+    TypeArea = 13
+    TypeHeatMap = 14
+    TypeInterval = 15
+    TypeManhattan = 16
+    TypeMap = 17
+    TypeSurface = 18
+    TypeVenn = 19
+
     OrientationVertical = 0
     OrientationHorizontal = 1
 
@@ -144,7 +155,6 @@ class ChartInfo:
         return data_series
 
     def get_description(self):
-
         if self.type == ChartInfo.TypeNonChart:
             type_str = "non-chart"
         elif self.type == ChartInfo.TypeLine:
@@ -155,6 +165,26 @@ class ChartInfo:
             type_str = "bar"
         elif self.type == ChartInfo.TypeBox:
             type_str = "box"
+
+        elif self.type == ChartInfo.TypePie:
+            type_str = "pie"
+        elif self.type == ChartInfo.TypeScatterLine:
+            type_str = "scatter-line"
+        elif self.type == ChartInfo.TypeArea:
+            type_str = "area"
+        elif self.type == ChartInfo.TypeHeatMap:
+            type_str = "heatmap"
+        elif self.type == ChartInfo.TypeInterval:
+            type_str = "interval"
+        elif self.type == ChartInfo.TypeManhattan:
+            type_str = "manhattan"
+        elif self.type == ChartInfo.TypeMap:
+            type_str = "map"
+        elif self.type == ChartInfo.TypeSurface:
+            type_str = "surface"
+        elif self.type == ChartInfo.TypeVenn:
+            type_str = "venn"
+
         else:
             raise Exception("Chart Type Not Supported")
 
@@ -180,6 +210,26 @@ class ChartInfo:
             chart_type = ChartInfo.TypeBar
         elif type_str == "box":
             chart_type = ChartInfo.TypeBox
+
+        elif type_str == "pie":
+            chart_type = ChartInfo.TypePie
+        elif type_str == "scatter-line":
+            chart_type = ChartInfo.TypeScatterLine
+        elif type_str == "area":
+            chart_type = ChartInfo.TypeArea
+        elif type_str == "heatmap":
+            chart_type = ChartInfo.TypeHeatMap
+        elif type_str == "interval":
+            chart_type = ChartInfo.TypeInterval
+        elif type_str == "manhattan":
+            chart_type = ChartInfo.TypeManhattan
+        elif type_str == "map":
+            chart_type = ChartInfo.TypeMap
+        elif type_str == "surface":
+            chart_type = ChartInfo.TypeSurface
+        elif type_str == "venn":
+            chart_type = ChartInfo.TypeVenn
+
         elif type_str == "non-chart":
             chart_type = ChartInfo.TypeNonChart
         else:

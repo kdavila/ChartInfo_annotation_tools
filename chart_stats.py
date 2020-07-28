@@ -8,19 +8,25 @@ from ChartInfo.util.file_stats import FileStats
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python chart_stats.py config")
+        print("Usage: python chart_stats.py config [config2] [...]")
         print("Where")
         print("\tconfig\t= Configuration File")
         print("")
         return
 
-    config_filename = sys.argv[1]
-    config = Configuration.from_file(config_filename)
+    all_stats = []
 
-    charts_dir = config.get_str("CHART_DIRECTORY")
-    annotations_dir = config.get_str("CHART_ANNOTATIONS")
+    for config_filename in sys.argv[1:]:
+        print("Processing: " + config_filename, flush=True)
+        config = Configuration.from_file(config_filename)
 
-    stats = FileStats(charts_dir, annotations_dir)
+        charts_dir = config.get_str("CHART_DIRECTORY")
+        annotations_dir = config.get_str("CHART_ANNOTATIONS")
+
+        stats = FileStats(charts_dir, annotations_dir)
+        all_stats.append(stats)
+
+    stats = FileStats.Merge(all_stats)
 
     print("")
     stats.print_general_stats()
@@ -31,6 +37,8 @@ def main():
     print("")
     stats.print_single_panel_annotated_stats(True)
 
+    print("")
+    stats.print_autocheck_stats()
 
 if __name__ == "__main__":
     main()

@@ -28,7 +28,7 @@ from ChartInfo.annotation.line_chart_annotator import LineChartAnnotator
 from ChartInfo.annotation.scatter_chart_annotator import ScatterChartAnnotator
 
 from ChartInfo.util.time_stats import TimeStats
-
+from ChartInfo.util.json_exporter import ChartJSON_Exporter
 
 class ChartImageAnnotator(BaseImageAnnotator):
     ModeNavigate = 0
@@ -137,6 +137,7 @@ class ChartImageAnnotator(BaseImageAnnotator):
         self.btn_class_panel_continue = None
 
         self.btn_save = None
+        self.btn_auto_check = None
         self.btn_return = None
 
         # generate the interface!
@@ -307,9 +308,15 @@ class ChartImageAnnotator(BaseImageAnnotator):
         self.btn_edit_data.click_callback = self.btn_edit_data_click
         self.container_annotation_buttons.append(self.btn_edit_data)
 
-        self.btn_save = ScreenButton("btn_save", "Save", 21, button_width)
+        self.btn_auto_check = ScreenButton("btn_auto_check", "Auto Check", 21, button_2_width)
+        self.btn_auto_check.set_colors(button_text_color, button_back_color)
+        self.btn_auto_check.position = (button_2_left, self.btn_edit_data.get_bottom() + 30)
+        self.btn_auto_check.click_callback = self.btn_auto_check_click
+        self.container_annotation_buttons.append(self.btn_auto_check)
+
+        self.btn_save = ScreenButton("btn_save", "Save", 21, button_2_width)
         self.btn_save.set_colors(button_text_color, button_back_color)
-        self.btn_save.position = (button_left, self.btn_edit_data.get_bottom() + 30)
+        self.btn_save.position = (button_2_right, self.btn_edit_data.get_bottom() + 30)
         self.btn_save.click_callback = self.btn_save_click
         self.container_annotation_buttons.append(self.btn_save)
 
@@ -577,6 +584,52 @@ class ChartImageAnnotator(BaseImageAnnotator):
 
         print("Data saved to: " + self.annotation_filename)
         self.unsaved_changes = False
+
+    def btn_auto_check_click(self, button):
+        status = ImageInfo.GetAllStatuses(self.image_info)
+
+        false_status = [(2 if val > 0 else 0) for val in status]
+        panel_info = self.image_info.panels[self.selected_panel]
+
+        self.unsaved_changes = True
+        panel_info.properties["auto_check_passed"] = 0
+
+        # class ...
+        if status[1] >= 1:
+            try:
+                ChartJSON_Exporter.prepare_chart_image_json(panel_info, false_status, 1, False)
+                print("Task 1: Annotation Seems Okay!")
+            except Exception as e:
+                print("Errors on Task 1 data (Chart Image Classification): " + str(e))
+                return
+
+        # text detection, classification and recognition ...
+        if status[2] >= 1:
+            try:
+                ChartJSON_Exporter.prepare_chart_image_json(panel_info, false_status, 3, False)
+                print("Tasks 2 and 3: Annotation Seems Okay!")
+            except Exception as e:
+                print("Errors on Task 2 or 3 (Text Detection, Recognition, and Classification): " + str(e))
+                return
+
+        if status[3] >= 1 and status[4] >= 1:
+            try:
+                ChartJSON_Exporter.prepare_chart_image_json(panel_info, false_status, 5, False)
+                print("Tasks 4 and 5: Annotation Seems Okay!")
+            except Exception as e:
+                print("Errors on Task 4 and/or 5 (Axes and Legend Recognition): " + str(e))
+                return
+
+        if status[5] >= 1:
+            try:
+                ChartJSON_Exporter.prepare_chart_image_json(panel_info, false_status, 7, False)
+                print("Tasks 6a/6b: Annotation Seems Okay!")
+            except Exception as e:
+                print("Errors on Task 6a/6b (Data Extraction): " + str(e))
+                return
+
+        panel_info.properties["auto_check_passed"] = 1
+        print("Chart meets all annotation requirements!")
 
     def btn_edit_class_click(self, button):
         prev_key = self.get_image_class_key()

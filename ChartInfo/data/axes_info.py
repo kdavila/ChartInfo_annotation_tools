@@ -27,6 +27,55 @@ class AxesInfo:
         self.x2_axis = None
         self.y2_axis = None
 
+    def axis_has_rotated_labels(self, axis, min_rectangle_ratio=0.8):
+        if axis == AxesInfo.AxisX1:
+            if self.x1_axis is not None:
+                return self.x1_axis.has_rotated_labels(self.tick_labels, min_rectangle_ratio)
+            else:
+                return False
+        elif axis == AxesInfo.AxisX2:
+            if self.x2_axis is not None:
+                return self.x2_axis.has_rotated_labels(self.tick_labels, min_rectangle_ratio)
+            else:
+                return False
+        elif axis == AxesInfo.AxisY1:
+            if self.y1_axis is not None:
+                return self.y1_axis.has_rotated_labels(self.tick_labels, min_rectangle_ratio)
+            else:
+                return False
+        elif axis == AxesInfo.AxisY2:
+            if self.y2_axis is not None:
+                return self.y2_axis.has_rotated_labels(self.tick_labels, min_rectangle_ratio)
+            else:
+                return False
+
+        else:
+            raise Exception("Unknown Axis")
+
+    def axis_get_projected_value(self, axis, pixel_value):
+        if axis == AxesInfo.AxisX1:
+            if self.x1_axis is not None:
+                pass
+            else:
+                raise Exception("Cannot Project to X-1, Axis is not defined on this chart")
+        elif axis == AxesInfo.AxisX2:
+            if self.x2_axis is not None:
+                pass
+            else:
+                raise Exception("Cannot Project to X-1, Axis is not defined on this chart")
+        elif axis == AxesInfo.AxisY1:
+            if self.y1_axis is not None:
+                pass
+            else:
+                raise Exception("Cannot Project to Y-1, Axis is not defined on this chart")
+        elif axis == AxesInfo.AxisY2:
+            if self.y2_axis is not None:
+                pass
+            else:
+                raise Exception("Cannot Project to Y-2, Axis is not defined on this chart")
+        else:
+            raise Exception("Unknown Axis")
+
     def is_complete(self):
         return not (self.bounding_box is None or
                     ((self.x1_axis is None or not self.x1_axis.is_complete()) and

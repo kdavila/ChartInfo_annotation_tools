@@ -1,5 +1,8 @@
 
+import math
+
 from .tick_info import TickInfo
+from scipy import interpolate
 
 class AxisValues:
     ValueTypeCategorical = 0
@@ -31,12 +34,52 @@ class AxisValues:
         # TODO: handle points where axis is "interrupted" (scale-breaking points)
         self.interruptions = None
 
+        self.cache_interp_x = None
+        self.cache_interp_y = None
+        self.cache_raw_abs_values = None
+
     def has_label(self, text_id):
         if self.labels is not None:
             return text_id in self.labels
         else:
             # the axis has no labels ...
             return False
+
+    def has_rotated_labels(self, tick_labels, min_rectangle_ratio=0.8):
+        for label_id in self.labels:
+            if tick_labels[label_id].axis_aligned_rectangle_ratio() < min_rectangle_ratio:
+                return True
+
+        return False
+
+    def has_unassigned_labels(self):
+        # first, build an inverted index of label_ids associated with tick marks
+        used_label_ids = {}
+        for tick_info in self.ticks:
+            if tick_info.label_id is not None:
+                used_label_ids[tick_info.label_id] = True
+
+        # now check if all label ids have been used ...
+        for label_id in self.labels:
+            if not label_id in used_label_ids:
+                # Found a label id which is not associated with any tick so far ...
+                return True
+
+        # reaches this part if no unused label id was found
+        return False
+
+    def has_invalid_assignments(self):
+        # find if there are ticks associated with labels that do not belong to this axis ..
+        for tick_info in self.ticks:
+            if tick_info.label_id is not None and tick_info.label_id not in self.labels:
+                # found a tick associated with a label not from this axis!
+                return True
+
+        return False
+
+
+    def ticks_with_labels(self):
+        return [tick_info for tick_info in self.ticks if tick_info.label_id is not None]
 
     def get_description(self):
         if self.values_type == AxisValues.ValueTypeNumerical:
@@ -123,6 +166,285 @@ class AxisValues:
         else:
             # text label object only
             return [text_label for _, text_label in tempo_sorted]
+
+    def get_tick_type_value_positions(self, is_vertical, text_labels):
+        if self.cache_raw_abs_values is not None:
+            return self.cache_raw_abs_values
+
+        # this function considers the tick type and returns the sorted absolute positions (in pixel space)
+        # of its labels (association of pixel coordinates with specific text labels)
+        raw_values = []
+        if self.ticks_type == AxisValues.TicksTypeMarkers:
+            # use the exact positions of ticks with associated labels
+            for tick_info in self.ticks:
+                if tick_info.label_id is not None:
+                    raw_values.append((tick_info.position, tick_info.label_id))
+        else:
+            # for separator ticks ... directly use the position of the labels
+            for label_id in self.labels:
+                # based on the center of the label ....
+                lbl_cx, lbl_cy = text_labels[label_id].get_center()
+                # ... and the orientation of the axis ...
+                if is_vertical:
+                    raw_values.append((lbl_cy, label_id))
+                else:
+                    raw_values.append((lbl_cx, label_id))
+
+        # CACHE this operation
+        self.cache_raw_abs_values = sorted(raw_values)
+
+        return self.cache_raw_abs_values
+
+    def get_interpolation_points(self, origin_value, is_vertical, text_labels):
+        if self.cache_interp_x is not None:
+            return self.cache_interp_x, self.cache_interp_y
+
+        self.cache_interp_x = []
+        self.cache_interp_y = []
+
+        raw_values = self.get_tick_type_value_positions(is_vertical, text_labels)
+
+        for raw_value, label_id in raw_values:
+            if is_vertical:
+                x = origin_value - raw_value
+            else:
+                x = raw_value - origin_value
+
+            self.cache_interp_x.append(x)
+
+            float_val = AxisValues.LabelNumericValue(text_labels[label_id].value)
+
+            self.cache_interp_y.append(float_val)
+
+        return self.cache_interp_x, self.cache_interp_y
+
+    @staticmethod
+    def IdentifyNumericPart(str_value):
+        num_start = 0
+        num_end = None
+        commas = []
+        dots = []
+        while num_start < len(str_value) and not (
+                "0" <= str_value[num_start] <= "9" or str_value[num_start] in [",", "."]):
+            num_start += 1
+
+        if num_start < len(str_value):
+            num_end = num_start
+            while num_end < len(str_value) and ("0" <= str_value[num_end] <= "9" or str_value[num_end] in [",", "."]):
+                if str_value[num_end] == ".":
+                    dots.append(num_end)
+                if str_value[num_end] == ",":
+                    commas.append(num_end)
+
+                num_end += 1
+
+        return num_start, num_end, dots, commas
+
+    @staticmethod
+    def RemoveThousandsSeparator(str_value):
+        num_start, num_end, dots, commas = AxisValues.IdentifyNumericPart(str_value)
+
+        if num_end is None:
+            raise Exception("No numeric pattern was found on input string: " + str_value)
+
+        if len(commas) > 1 and len(dots) > 1:
+            # there can be multiple commas and at most one dot or multiple dots and at most one comma
+            # there should not be both multiple commas and multiple dots
+            raise Exception("Invalid combination of digit separators was found: " + str_value)
+
+        # note that this function does not validate ... it only guesses format and tries to make sure that most strings
+        # will be correctly parsed to float
+        num_str = str_value[num_start:num_end]
+        if len(commas) > 0:
+            if len(dots) > 0:
+                # need to figure out if using "1,234.56" or "1.234,56"
+                if dots[-1] < commas[-1]:
+                    # the comma appears last ... assume "1.234,56"
+                    if len(commas) == 1:
+                        # remove dots .... then replace comma with dot
+                        num_str = num_str.replace(".", "")
+                        num_str = num_str.replace(",", ".")
+                    else:
+                        # invalid ... there can be only one comma (fraction separator)
+                        raise Exception("Invalid numeric string: " + str_value)
+                else:
+                    # the dot appears last ... assume "1,234.56"
+                    if len(dots) == 1:
+                        # remove commas
+                        num_str = num_str.replace(",", "")
+                    else:
+                        # invalid ... there can be only one dot (fraction separator)
+                        raise Exception("Invalid numeric string: " + str_value)
+            else:
+                # does not contain "dot", it could still be "1,234"="1234.00" or "1,23"="1.23"
+                if len(commas) == 1 and num_end - commas[0] <= 3:
+                    # assume comma is used as the separator for fractions ("." is for thousands but absent here)
+                    # replace comma
+                    num_str = num_str.replace(",", ".")
+                else:
+                    # assume commas are used as thousands separators, remove them
+                    num_str = num_str.replace(",", "")
+
+            result = str_value[:num_start] + num_str + str_value[num_end:]
+        elif len(dots) > 1:
+            # there is no comma on the string, but it contains more than one dot
+            # assume that dots are used as the thousands separators and remove them
+            num_str = num_str.replace(".", "")
+            result = str_value[:num_start] + num_str + str_value[num_end:]
+        else:
+            # no conversion applied
+            result = str_value
+
+        return result
+
+    @staticmethod
+    def LabelNumericValue(str_val):
+        multiplier = 1.0
+
+        # TODO: Cases not yet handled:
+        # TODO: - Fractions "1/2", "1/4" ...etc
+        # TODO: - Dates (multiple formats)
+        # TODO: - Times (multiple formats)
+        # TODO: - Roman Numbers!
+        # TODO: - Ordinals
+        # TODO: - Some labels can be used by two axis (e.g. the zero)
+
+        str_val = str_val.lower()
+
+        # X,YYY,ZZZ.AA -> XYYYZZZ.AA
+        # X.XXX.XXX,XX -> XYYYZZZ.AA
+        str_val = AxisValues.RemoveThousandsSeparator(str_val)
+
+        # TODO: This is a good place to capture potential units ....
+        # keep this list sorted
+        known_units = ["s", "ms", "m", "cm", "mm", "$"]
+        known_units = sorted([(len(unit), unit) for unit in known_units], reverse=True)
+        for l, unit in known_units:
+            if unit in str_val:
+                str_val = str_val.replace(unit, "")
+
+        if "%" in str_val:
+            str_val = str_val.replace("%", "")
+            multiplier = 0.01
+
+        if " " in str_val:
+            str_val = str_val.replace(" ", "")
+
+        # replace by space and strip to remove the space automatically only if they space is before or after the string
+        # but still should trigger an error if the symbol is placed between other elements
+        if "~" in str_val:
+            str_val = str_val.replace("~", " ").strip()
+        if "<" in str_val:
+            str_val = str_val.replace("<", " ").strip()
+        if ">" in str_val:
+            str_val = str_val.replace("<", " ").strip()
+        if "=" in str_val:
+            str_val = str_val.replace("<", " ").strip()
+
+        # Handle scientific notation (including LaTeX strings)
+        if "x10" in str_val:
+            str_val = str_val.replace("x10", "E")
+        if "*10" in str_val:
+            str_val = str_val.replace("*10", "E")
+        if "\\times10^" in str_val:
+            str_val = str_val.replace("\\times10", "E")
+        if str_val[:3] == "10^":
+            # directly starts with power of 10 and previous test would fail and next one would destroy value...
+            # replace
+            str_val = str_val.replace("10^", "1E")
+        if "^" in str_val:
+            str_val = str_val.replace("^", "")
+        if "{" in str_val and "}" in str_val:
+            str_val = str_val.replace("{", "")
+            str_val = str_val.replace("}", "")
+
+        return float(str_val.strip()) * multiplier
+
+    @staticmethod
+    def Project(axes, axis_values, vertical_axis, pixel_value):
+        if axis_values.values_type == AxisValues.ValueTypeNumerical:
+            # GET origin value
+            # use X or Y origin based on axis being vertical or horizontal
+            bb_x1, bb_y1, bb_x2, bb_y2 = axes.bounding_box
+
+            """
+                if is_vertical:
+                    x = origin_value - tick_info.position
+                else:
+                    x = tick_info.position - origin_value
+            """
+
+            if vertical_axis:
+                interp_x, interp_y = axis_values.get_interpolation_points(bb_y2, vertical_axis, axes.tick_labels)
+                rel_pixel_value = bb_y2 - pixel_value
+            else:
+                interp_x, interp_y = axis_values.get_interpolation_points(bb_x1, vertical_axis, axes.tick_labels)
+                rel_pixel_value = pixel_value - bb_x1
+
+            # print((rel_pixel_value, interp_x, interp_y))
+
+            # identify the closest
+            if axis_values.scale_type == AxisValues.ScaleLinear:
+                # check for tick values
+                if len(interp_x) == 0:
+                    # axis is marked as linear, but has no tick labels .... assume default range [0.0, 1.0]
+                    if vertical_axis:
+                        interp_x = [bb_y2 - bb_y1, 0.0]
+                        interp_y = [1.0, 0.0]
+                    else:
+                        interp_x = [0.0, bb_x2 - bb_x1]
+                        interp_y = [0.0, 1.0]
+
+                # interpolate value ...
+                f_int = interpolate.interp1d(interp_x, interp_y, 'linear', fill_value='extrapolate')
+                return float(f_int(rel_pixel_value))
+            elif axis_values.scale_type == AxisValues.ScaleLogarithmic:
+                if 0.0 in interp_y:
+                    pos = interp_y.index(0.0)
+                    del interp_x[pos]
+                    del interp_y[pos]
+
+                if len(interp_x) == 0:
+                    # axis is marked as linear, but has no tick labels .... assume default range [0.0, 1.0]
+                    if vertical_axis:
+                        interp_x = [bb_y2 - bb_y1, 0.0]
+                        interp_y = [10.0, 1.0]
+                    else:
+                        interp_x = [0.0, bb_x2 - bb_x1]
+                        interp_y = [1.0, 10.0]
+
+                f_int = interpolate.interp1d(interp_x, [math.log(val) for val in interp_y], 'linear',
+                                             fill_value='extrapolate')
+                return float(math.exp(f_int(rel_pixel_value)))
+            else:
+                raise Exception("Cannot project on Numerical Axis without Scale")
+        else:
+            raise Exception("Cannot project on Categorical Axis")
+
+    @staticmethod
+    def FindClosestValue(axes, axis_values, vertical_axis, pixel_value):
+        label_positions = axis_values.get_tick_type_value_positions(vertical_axis, axes.tick_labels)
+
+        if len(label_positions) == 0:
+            raise  Exception("Cannot find the closest value for given pixel coordinate on empty Axis")
+
+        best_distance = None
+        best_label_id = None
+        for abs_pos, label_id in label_positions:
+            dist = abs(pixel_value - abs_pos)
+
+            if best_distance is None or dist < best_distance:
+                best_distance = dist
+                best_label_id = label_id
+
+        closest_value = axes.tick_labels[best_label_id].value
+
+        if axis_values.values_type == AxisValues.ValueTypeCategorical:
+            # use raw tick label string as value
+            return closest_value
+        else:
+            # numerical ... convert ...
+            return AxisValues.LabelNumericValue(closest_value)
 
     def to_XML(self, indent=""):
         xml_str = indent + "<AxisValues>\n"

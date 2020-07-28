@@ -28,6 +28,8 @@ class BaseImageAnnotator(Screen):
         self.view_mode = BaseImageAnnotator.ViewModeRawData
         self.view_scale = 1.0
 
+        self.view_overlay_opacity = 1.0
+
         self.container_view_buttons = None
         self.lbl_zoom = None
         self.btn_zoom_reduce = None
@@ -306,6 +308,14 @@ class BaseImageAnnotator(Screen):
         # finally, resize ...
         modified_image = cv2.resize(modified_image, (int(w * self.view_scale), int(h * self.view_scale)),
                                     interpolation=cv2.INTER_NEAREST)
+
+        if self.view_overlay_opacity < 1.0:
+            resized_base = cv2.resize(base_image, (int(w * self.view_scale), int(h * self.view_scale)),
+                                      interpolation=cv2.INTER_NEAREST)
+
+            # add transparency effect ...
+            modified_image = resized_base.astype(np.float64) * 0.5 + modified_image.astype(np.float64) * 0.5
+            modified_image = modified_image.astype(np.uint8)
 
         # update canvas size ....
         self.canvas_select.height, self.canvas_select.width, _ = modified_image.shape

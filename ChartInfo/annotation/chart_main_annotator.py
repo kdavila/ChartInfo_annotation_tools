@@ -200,7 +200,7 @@ class ChartMainAnnotator(Screen):
         self.img_status_data.set_color((255, 255, 255))
         self.container_image_info.append(self.img_status_data)
 
-        self.img_title = ScreenLabel("img_title", "<Image File Name>" * 10, 16, self.img_display.width)
+        self.img_title = ScreenLabel("img_title", "<Image File Name>" * 10, 20, self.img_display.width)
         self.img_title.position = (10, self.img_status_panels.get_bottom() + 10)
         self.img_title.background = self.container_image_info.back_color
         self.img_title.set_color(self.text_color)

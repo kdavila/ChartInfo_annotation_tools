@@ -1,6 +1,9 @@
 
+import numpy as np
+
 from .series_sorting import SeriesSorting
 from .axes_info import AxesInfo
+from .axes_info import AxisValues
 from .box_values import BoxValues
 
 class BoxData:
@@ -115,6 +118,294 @@ class BoxData:
             return "by-data-series"
         else:
             raise Exception("Unexpected Box Data Grouping found")
+
+    def compute_box_polygons(self, chart_info):
+        # Parallel to the version of the function in Box Chart Annotator, but without drawing structures and temporals
+        x1, y1, x2, y2 = chart_info.axes.bounding_box
+        x1 = int(x1)
+        y1 = int(y1)
+        x2 = int(x2)
+        y2 = int(y2)
+
+        if self.box_vertical:
+            # assume left to right
+            box_start = x1 + self.box_offset
+            # assume they start at the bottom
+            box_baseline = y2
+        else:
+            # assume top to bottom
+            box_start = y1 + self.box_offset
+            # assume they start at the left
+            box_baseline = x1
+
+        boxes_lines = []
+        medians_lines = []
+        top_whiskers = []
+        bottom_whiskers = []
+
+        box_polygon_index = []
+
+        if self.box_grouping == BoxData.GroupingByCategory:
+            # boxes are grouped by categorical value ...
+            for cat_idx, category in enumerate(self.categories):
+                for group_idx, group in enumerate(self.box_sorting.order):
+                    box_end = box_start + self.box_width
+
+                    # No stacking for box plots ... the group should contain only one data series ...
+                    series_idx = group[0]
+
+                    # ...retrieve corresponding box values ...
+                    box = self.boxes[series_idx][cat_idx]
+
+                    # ... get drawing info ...
+                    all_box_lines = box.get_box_lines(box_baseline, box_start, box_end, self.box_vertical)
+                    box_polygon, box_median, whisker_bottom, whisker_top = all_box_lines
+
+                    #  ... add drawing info ....
+                    boxes_lines.append(box_polygon)
+                    medians_lines.append(box_median)
+                    bottom_whiskers.append(whisker_bottom)
+                    top_whiskers.append(whisker_top)
+
+                    # ... index for quicker mapping between boxes to click positions ....
+                    box_polygon_index.append((series_idx, cat_idx))
+
+                    # move to end of the box ... (+ width)
+                    box_start += self.box_width
+                    # check if move to the next box on same grouping
+                    if group_idx + 1 < len(self.box_sorting.order):
+                        # + distance between contiguous bars
+                        box_start += self.box_inner_dist
+
+                # next group of boxes ...
+                box_start += self.box_outer_dist
+
+        else:
+            # boxes are grouped by data series
+            for group_idx, group in enumerate(self.box_sorting.order):
+                for cat_idx, category in enumerate(self.categories):
+                    box_end = box_start + self.box_width
+
+                    # No stacking for box plots ... the group should contain only one data series ...
+                    series_idx = group[0]
+
+                    # ...retrieve corresponding box values ...
+                    box = self.boxes[series_idx][cat_idx]
+
+                    # ... get drawing info ...
+                    all_box_lines = box.get_box_lines(box_baseline, box_start, box_end, self.box_vertical)
+                    box_polygon, box_median, whisker_bottom, whisker_top = all_box_lines
+
+                    #  ... add drawing info ....
+                    boxes_lines.append(box_polygon)
+                    medians_lines.append(box_median)
+                    bottom_whiskers.append(whisker_bottom)
+                    top_whiskers.append(whisker_top)
+
+                    # ... index for quicker mapping between boxes to click positions ....
+                    box_polygon_index.append((series_idx, cat_idx))
+
+                    # move to the end of the box
+                    box_start += self.box_width
+                    # check if move to the next box on same grouping
+                    if cat_idx + 1 < len(self.categories):
+                        box_start += self.box_inner_dist
+
+                # next group of boxes ...
+                box_start += self.box_outer_dist
+
+        boxes_lines = np.array(boxes_lines).round().astype(np.int32)
+        medians_lines = np.array(medians_lines).round().astype(np.int32)
+        bottom_whiskers = np.array(bottom_whiskers).round().astype(np.int32)
+        top_whiskers = np.array(top_whiskers).round().astype(np.int32)
+
+        all_lines = boxes_lines, medians_lines, bottom_whiskers, top_whiskers
+
+        return all_lines, box_polygon_index
+
+    @staticmethod
+    def get_box_line_JSON(p1, p2):
+        p1_x, p1_y = p1
+        p2_x, p2_y = p2
+
+        cx = (p1_x + p2_x) / 2.0
+        cy = (p1_y + p2_y) / 2.0
+
+        x0 = min(p1_x, p2_x)
+        y0 = min(p1_y, p2_y)
+
+        w = max(p1_x, p2_x) - x0
+        h = max(p1_y, p2_y) - y0
+
+        info = {
+            "_bb": {
+                "height": float(h),
+                "width": float(w),
+                "x0": float(x0),
+                "y0": float(y0)
+            },
+            "x": float(cx),
+            "y": float(cy)
+        }
+
+        return info
+
+    @staticmethod
+    def get_box_polygons_JSON(all_lines):
+        # construct the box visual output
+        boxes = []
+        all_boxes_l, all_medians_l, all_bottom_w, all_top_w = all_lines
+        # for each box ....
+        for box_l, median_l, bottom_w, top_w in zip(all_boxes_l, all_medians_l, all_bottom_w, all_top_w):
+            wb_box_mid, wb_line_mid, wb_line_start, wb_line_end = bottom_w
+            wt_box_mid, wt_line_mid, wt_line_start, wt_line_end = top_w
+            b_min_start, b_max_start, b_max_end, b_min_end = box_l
+            b_med_start, b_med_end = median_l
+
+            box_info = {
+                "min": BoxData.get_box_line_JSON(wb_line_start, wb_line_end),
+                "first_quartile": BoxData.get_box_line_JSON(b_min_start, b_min_end),
+                "median": BoxData.get_box_line_JSON(b_med_start, b_med_end),
+                "third_quartile": BoxData.get_box_line_JSON(b_max_start, b_max_end),
+                "max": BoxData.get_box_line_JSON(wt_line_start, wt_line_end),
+            }
+            boxes.append(box_info)
+
+        return boxes
+
+    def get_data_series_JSON(self, chart_info):
+        x1, y1, x2, y2 = chart_info.axes.bounding_box
+        x1 = int(x1)
+        y1 = int(y1)
+        x2 = int(x2)
+        y2 = int(y2)
+
+        if self.box_vertical:
+            # assume they start at the bottom
+            box_baseline = y2
+        else:
+            # assume they start at the left
+            box_baseline = x1
+
+        # now infer data quantities based on polygons ...
+        # for each data series ...
+        data_series = []
+        for series_idx, series_text in enumerate(self.data_series):
+            series_data = []
+            for cat_idx, category_text in enumerate(self.categories):
+                if category_text is None:
+                    category_name = "[unnamed category #{0:d}]".format(cat_idx)
+                else:
+                    category_name = category_text.value
+
+                data_point = {"x": category_name}
+
+                # to get the value of the boxes, we need to get the numerical value of each point of interest....
+                # this is scale dependent
+                box = self.boxes[series_idx][cat_idx]
+
+                if self.box_vertical:
+                    b_min = box_baseline - box.box_min
+                    b_med = box_baseline - box.box_median
+                    b_max = box_baseline - box.box_max
+                    w_min = box_baseline - box.whiskers_min
+                    w_max = box_baseline - box.whiskers_max
+
+                    if chart_info.axes.y1_axis is not None:
+                        # most common case, project against y axis on left side ...
+                        proj_w_min = AxisValues.Project(chart_info.axes, chart_info.axes.y1_axis, True, w_min)
+                        proj_b_min = AxisValues.Project(chart_info.axes, chart_info.axes.y1_axis, True, b_min)
+                        proj_b_med = AxisValues.Project(chart_info.axes, chart_info.axes.y1_axis, True, b_med)
+                        proj_b_max = AxisValues.Project(chart_info.axes, chart_info.axes.y1_axis, True, b_max)
+                        proj_w_max = AxisValues.Project(chart_info.axes, chart_info.axes.y1_axis, True, w_max)
+
+                        data_point["min"] = proj_w_min
+                        data_point["first_quartile"] = proj_b_min
+                        data_point["median"] = proj_b_med
+                        data_point["third_quartile"] = proj_b_max
+                        data_point["max"] = proj_w_max
+
+                    if chart_info.axes.y2_axis is not None:
+                        # less common case, project against y axis on right side ...
+                        proj_w_min = AxisValues.Project(chart_info.axes, chart_info.axes.y2_axis, True, w_min)
+                        proj_b_min = AxisValues.Project(chart_info.axes, chart_info.axes.y2_axis, True, b_min)
+                        proj_b_med = AxisValues.Project(chart_info.axes, chart_info.axes.y2_axis, True, b_med)
+                        proj_b_max = AxisValues.Project(chart_info.axes, chart_info.axes.y2_axis, True, b_max)
+                        proj_w_max = AxisValues.Project(chart_info.axes, chart_info.axes.y2_axis, True, w_max)
+
+                        data_point["y2-min"] = proj_w_min
+                        data_point["y2-first_quartile"] = proj_b_min
+                        data_point["y2-median"] = proj_b_med
+                        data_point["y2-third_quartile"] = proj_b_max
+                        data_point["y2-max"] = proj_w_max
+
+                    if chart_info.axes.y1_axis is None and chart_info.axes.y2_axis is None:
+                        raise Exception("No Dependent Axis found")
+                else:
+                    b_min = box_baseline + box.box_min
+                    b_med = box_baseline + box.box_median
+                    b_max = box_baseline + box.box_max
+                    w_min = box_baseline + box.whiskers_min
+                    w_max = box_baseline + box.whiskers_max
+
+                    if chart_info.axes.x1_axis is not None:
+                        # most common case, project against x axis on bottom  ...
+                        proj_w_min = AxisValues.Project(chart_info.axes, chart_info.axes.x1_axis, True, w_min)
+                        proj_b_min = AxisValues.Project(chart_info.axes, chart_info.axes.x1_axis, True, b_min)
+                        proj_b_med = AxisValues.Project(chart_info.axes, chart_info.axes.x1_axis, True, b_med)
+                        proj_b_max = AxisValues.Project(chart_info.axes, chart_info.axes.x1_axis, True, b_max)
+                        proj_w_max = AxisValues.Project(chart_info.axes, chart_info.axes.x1_axis, True, w_max)
+
+                        data_point["min"] = proj_w_min
+                        data_point["first_quartile"] = proj_b_min
+                        data_point["median"] = proj_b_med
+                        data_point["third_quartile"] = proj_b_max
+                        data_point["max"] = proj_w_max
+
+                    if chart_info.axes.x2_axis is not None:
+                        # less common case, project against x axis on top  ...
+                        proj_w_min = AxisValues.Project(chart_info.axes, chart_info.axes.x2_axis, True, w_min)
+                        proj_b_min = AxisValues.Project(chart_info.axes, chart_info.axes.x2_axis, True, b_min)
+                        proj_b_med = AxisValues.Project(chart_info.axes, chart_info.axes.x2_axis, True, b_med)
+                        proj_b_max = AxisValues.Project(chart_info.axes, chart_info.axes.x2_axis, True, b_max)
+                        proj_w_max = AxisValues.Project(chart_info.axes, chart_info.axes.x2_axis, True, w_max)
+
+                        data_point["y2-min"] = proj_w_min
+                        data_point["y2-first_quartile"] = proj_b_min
+                        data_point["y2-median"] = proj_b_med
+                        data_point["y2-third_quartile"] = proj_b_max
+                        data_point["y2-max"] = proj_w_max
+
+                    if chart_info.axes.x1_axis is None and chart_info.axes.x2_axis is None:
+                        raise Exception("No Dependent Axis found")
+
+                # print((data_point))
+                series_data.append(data_point)
+
+            if series_text is None:
+                series_name = "[unnamed data series #{0:d}]".format(series_idx)
+            else:
+                series_name = series_text.value
+
+            data_series_info = {
+                "name": series_name,
+                "data": series_data,
+            }
+            # print((series_idx, series_text))
+            data_series.append(data_series_info)
+
+        return data_series
+
+    def parse_data(self, chart_info):
+        all_lines, box_polygon_index = self.compute_box_polygons(chart_info)
+
+        # task 6.a
+        boxes = BoxData.get_box_polygons_JSON(all_lines)
+        # task 6.b
+        data_series = self.get_data_series_JSON(chart_info)
+
+        # print(data_series)
+        return boxes, data_series
 
     def to_XML(self, indent=""):
         xml_str = indent + '<Data class="BoxData">\n'

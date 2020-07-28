@@ -629,43 +629,6 @@ class BarChartAnnotator(BaseImageAnnotator):
 
             self.lbx_number_series_values.add_option(str(idx), display_value)
 
-    def get_bar_lines(self, bar_baseline, bar_start, bar_end, bar_length):
-        if self.data.bar_vertical:
-            bar_max = bar_baseline - bar_length
-
-            left_axis = (bar_start, bar_baseline)
-            left_top = (bar_start, bar_max)
-            right_top = (bar_end, bar_max)
-            right_axis = (bar_end, bar_baseline)
-
-            return (left_axis, left_top, right_top, right_axis), bar_max
-        else:
-            bar_max = bar_baseline + bar_length
-
-            top_axis = (bar_baseline, bar_start)
-            top_right = (bar_max, bar_start)
-            bottom_right = (bar_max, bar_end)
-            bottom_axis = (bar_baseline, bar_end)
-
-            return (top_axis, top_right, bottom_right, bottom_axis), bar_max
-
-    def get_stacked_bar_lines(self, cat_idx, group, bar_lengths, bar_baseline, bar_start, bar_end):
-        polygons = []
-        polygon_index = []
-        current_baseline = bar_baseline
-        for stack_idx, series_idx in enumerate(group):
-            # ...retrieve corresponding bar length ...
-            bar_length = bar_lengths[series_idx][cat_idx]
-
-            bar_lines, bar_max = self.get_bar_lines(current_baseline, bar_start, bar_end, bar_length)
-
-            polygons.append(bar_lines)
-            polygon_index.append((series_idx, cat_idx, stack_idx, current_baseline))
-
-            current_baseline = bar_max
-
-        return polygons, polygon_index
-
     def compute_bar_polygons(self):
         x1, y1, x2, y2 = self.panel_info.axes.bounding_box
         x1 = int(x1)
@@ -713,8 +676,9 @@ class BarChartAnnotator(BaseImageAnnotator):
                     bar_end = bar_start + bar_width
 
                     # add stacked bars ...
-                    polygons, polygon_index = self.get_stacked_bar_lines(cat_idx, group, bar_lengths, bar_baseline,
-                                                                         bar_start, bar_end)
+                    polygons, polygon_index = BarData.get_stacked_bar_lines(self.data.bar_vertical, cat_idx, group,
+                                                                            bar_lengths, bar_baseline, bar_start,
+                                                                            bar_end)
 
                     # For drawing ...
                     if self.edition_mode in [BarChartAnnotator.ModeDataEdit, BarChartAnnotator.ModeDataSelect]:
