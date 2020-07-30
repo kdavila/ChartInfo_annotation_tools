@@ -708,8 +708,9 @@ class BarChartAnnotator(BaseImageAnnotator):
                     bar_end = bar_start + bar_width
 
                     # draw stacked bars ...
-                    polygons, polygon_index = self.get_stacked_bar_lines(cat_idx, group, bar_lengths, bar_baseline,
-                                                                         bar_start, bar_end)
+                    polygons, polygon_index = BarData.get_stacked_bar_lines(self.data.bar_vertical, cat_idx, group,
+                                                                            bar_lengths, bar_baseline, bar_start,
+                                                                            bar_end)
 
                     # for drawing ...
                     if self.edition_mode in [BarChartAnnotator.ModeDataEdit, BarChartAnnotator.ModeDataSelect]:
