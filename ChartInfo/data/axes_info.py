@@ -4,6 +4,8 @@ from .axis_values import AxisValues
 
 from .legacy_1_0_axes_info import LegacyAxesInfo
 
+from shapely.geometry import Polygon
+
 class AxesInfo:
     DataVersion = 1.1
 
@@ -11,6 +13,10 @@ class AxesInfo:
     AxisY1 = 1
     AxisX2 = 2
     AxisY2 = 3
+
+    RegionAll = 0
+    RegionPlot = 1
+    RegionNonPlot = 2
 
     def __init__(self, tick_labels, axes_titles):
         # text indices ...
@@ -26,6 +32,23 @@ class AxesInfo:
         # ... un-common axes ...
         self.x2_axis = None
         self.y2_axis = None
+
+    def get_bbox_polygon(self):
+        b_x1, b_y1, b_x2, b_y2 = self.bounding_box
+        return Polygon([(b_x1, b_y1), (b_x2, b_y1), (b_x2, b_y2), (b_x1, b_y2)])
+
+    def intersects_polygon(self, other_polygon):
+        bbox_poly = self.get_bbox_polygon()
+
+        return bbox_poly.intersects(other_polygon)
+
+    def get_text_region(self, text_info):
+        text_poly = Polygon(text_info.position_polygon)
+
+        if self.intersects_polygon(text_poly):
+            return AxesInfo.RegionPlot
+        else:
+            return AxesInfo.RegionNonPlot
 
     def axis_has_rotated_labels(self, axis, min_rectangle_ratio=0.8):
         if axis == AxesInfo.AxisX1:

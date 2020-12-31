@@ -531,6 +531,7 @@ class ChartTextAnnotator(BaseImageAnnotator):
     def btn_confirm_accept_click(self, button):
         if self.edition_mode == ChartTextAnnotator.ModeConfirmExit:
             print("-> Changes made to Text Annotations were lost")
+            self.parent_screen.copy_view(self)
             self.return_screen = self.parent_screen
         elif self.edition_mode == ChartTextAnnotator.ModeConfirmDeleteText:
             # delete tempo region ...
@@ -557,6 +558,7 @@ class ChartTextAnnotator(BaseImageAnnotator):
             self.panel_info.overwrite_text(self.text_regions, overwrite, overwrite, overwrite)
             self.parent_screen.subtool_completed(True)
             # return
+            self.parent_screen.copy_view(self)
             self.return_screen = self.parent_screen
         else:
             raise Exception("Not Implemented")
@@ -686,9 +688,11 @@ class ChartTextAnnotator(BaseImageAnnotator):
                 # overwrite text data ... both legend  and axes are None
                 self.panel_info.overwrite_text(self.text_regions, False, False, False)
                 # return
+                self.parent_screen.copy_view(self)
                 self.return_screen = self.parent_screen
         else:
             # Nothing changed just return
+            self.parent_screen.copy_view(self)
             self.return_screen = self.parent_screen
 
     def btn_return_cancel_click(self, button):
@@ -697,6 +701,7 @@ class ChartTextAnnotator(BaseImageAnnotator):
             self.set_editor_mode(ChartTextAnnotator.ModeConfirmExit)
         else:
             # just return
+            self.parent_screen.copy_view(self)
             self.return_screen = self.parent_screen
 
     def find_next_id(self):
@@ -932,7 +937,15 @@ class ChartTextAnnotator(BaseImageAnnotator):
         # first, we need a binarized version of the input image ...
         gray_bbox_cut = self.base_gray_image[miny:maxy, minx:maxx, 0]
         otsu_t, binarized_cut = cv2.threshold(gray_bbox_cut, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        binarized_cut = 255 - binarized_cut
+
+        total_w = (binarized_cut == 255).sum()
+        total_b = (binarized_cut == 0).sum()
+
+        # check if binarize image should be inverted (or not)
+        if total_w > total_b:
+            # assume background is light and text is dark (most common)
+            # invert to get text in white and black background
+            binarized_cut = 255 - binarized_cut
 
         if binarized_cut.sum() == 0:
             print("The Bounding Box seems empty")
@@ -1028,6 +1041,7 @@ class ChartTextAnnotator(BaseImageAnnotator):
         self.panel_info.overwrite_text(self.text_regions, discard_legend, discard_axes, discard_data)
         self.parent_screen.subtool_completed(True)
         # return
+        self.parent_screen.copy_view(self)
         self.return_screen = self.parent_screen
 
     def btn_admin_confirm_keep_none_click(self, button):

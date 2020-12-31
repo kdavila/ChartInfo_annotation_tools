@@ -5,7 +5,7 @@ from .axis_values import AxisValues
 class LineData:
     DataVersion = 1.0
 
-    Parsing_TickInRangeThreshold = 5
+    Parsing_TickInRangeThreshold = 10
 
     def __init__(self, data_series):
         self.data_series = data_series
@@ -80,6 +80,7 @@ class LineData:
                     var_x_pixel_points.append(pos_x)
 
                 var_x_chart_values.append(tick_label.value)
+
         else:
             # sample based on line data ....
             var_x_pixel_points = None
@@ -120,14 +121,18 @@ class LineData:
             lr_min_x, lr_min_y, lr_max_x, lr_max_y = line_values.get_line_relative_bbox()
 
             for x_val_idx in range(len(line_x_chart_values)):
+                # print((series_idx, series_text, x_val_idx))
                 if var_x_chart_values is not None:
                     # we need to differentiate and avoid sampling lines at unknown points needing extrapolation
                     # if they are too far away from the range of known points
+                    # print((line_x_pixel_points[x_val_idx], x1, lr_min_x, LineData.Parsing_TickInRangeThreshold, lr_max_x))
                     if ((line_x_pixel_points[x_val_idx] < x1 + lr_min_x - LineData.Parsing_TickInRangeThreshold) or
                         (x1 + lr_max_x + LineData.Parsing_TickInRangeThreshold < line_x_pixel_points[x_val_idx])):
                         # point is out of range for interpolation, and too far to extrapolate with confidence ...
                         # skip!!!
                         continue
+
+                # print("-not skipped!")
 
                 # get point in relative coordinate space (with respect to the data region)
                 rel_x_value = line_x_pixel_points[x_val_idx] - x1
@@ -157,7 +162,17 @@ class LineData:
 
                 current_data_series.append(data_series_point)
 
-            data_series.append(current_data_series)
+            if series_text is None:
+                series_name = "[unnamed data series #{0:d}]".format(series_idx)
+            else:
+                series_name = series_text.value
+
+            final_data_series = {
+                "data": current_data_series,
+                "name": series_name,
+            }
+
+            data_series.append(final_data_series)
             all_line_points.append(current_line_points)
 
         # print(data_series)

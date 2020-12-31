@@ -6,7 +6,7 @@ from AM_CommonTools.configuration.configuration import Configuration
 from ChartInfo.util.file_stats import FileStats
 from ChartInfo.util.json_exporter import ChartJSON_Exporter
 
-def prepare_json(img_folder, xml_folder, json_folder, task_num=1, mask_output=True):
+def prepare_json(img_folder, xml_folder, json_folder, error_output_filename, task_num=1, mask_output=True):
     print("\n\nLoading annotations from " + xml_folder)
     stats = FileStats(img_folder, xml_folder, True)
 
@@ -17,6 +17,10 @@ def prepare_json(img_folder, xml_folder, json_folder, task_num=1, mask_output=Tr
         print("Preparing JSON for " + img_file)
 
         img_info = stats.cache_annotations[img_idx]
+        if img_info is None:
+            print("\tWarning: no annotation found for this image! Skipping!")
+            continue
+
         img_status = stats.img_statuses[img_idx]
         if len(img_info.panels) > 1:
             print("\tWarning: the image has multiple panels! Skipping!")
@@ -54,7 +58,6 @@ def prepare_json(img_folder, xml_folder, json_folder, task_num=1, mask_output=Tr
             collected_errors.append("{0:s}\t{1:s}\tExported Task {2:d}\n".format(img_file, str(e), tempo_task_num))
 
     if len(collected_errors) > 0:
-        error_output_filename = "EXPORT_ERRORS.CSV"
         with open(error_output_filename, "a") as out_file:
             out_file.writelines(collected_errors)
 
@@ -62,7 +65,16 @@ def prepare_json(img_folder, xml_folder, json_folder, task_num=1, mask_output=Tr
 
 def main():
     if len(sys.argv) < 2:
-        print('Usage: python chart_json_export.py config [json_folder] [task_num] [test_mode]')
+        print('Usage: ')
+        print("\tpython chart_json_export.py config [json_folder] [task_num] [test_mode] [errors]")
+        print("Where: ")
+        print("\tconfig\t\tChart Annotator Configuration for Input Images")
+        print("\tjson_folder\tOutput directory for JSON files")
+        print("\ttask_num\tMax Task to output")
+        print("\ttest_mode")
+        print("\t\t0 - Training Dataset Mode")
+        print("\t\t1 - Testing Dataset Mode")
+        print("\terrors\t\tName for file with export errors")
         return
 
     config_filename = sys.argv[1]
@@ -92,13 +104,19 @@ def main():
         # use config with default mode: not testing
         test_mode = config.get_bool("CHART_JSON_EXPORT_TEST_MODE", False)
 
+    if len(sys.argv) >= 6:
+        # override errors filename
+        error_filename = sys.argv[5]
+    else:
+        error_filename = "EXPORT_ERRORS.CSV"
+
     print("Chart Images Directory: " + charts_dir)
     print("Input XML Annotations Directory: " + annotations_dir)
     print("Output JSON Annotation Directory: " + json_dir)
     print("Task to export in JSON Format: " + str(task_num))
     print("Export Mode: " + ("Testing" if test_mode else "Training"))
 
-    prepare_json(charts_dir, annotations_dir, json_dir, task_num, test_mode)
+    prepare_json(charts_dir, annotations_dir, json_dir, error_filename, task_num, test_mode)
 
 if __name__ == '__main__':
     main()

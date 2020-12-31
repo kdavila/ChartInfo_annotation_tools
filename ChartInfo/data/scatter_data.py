@@ -134,7 +134,17 @@ class ScatterData:
 
                 current_data_series.append(data_series_point)
 
-            data_series.append(current_data_series)
+            if series_text is None:
+                series_name = "[unnamed data series #{0:d}]".format(series_idx)
+            else:
+                series_name = series_text.value
+
+            final_data_series = {
+                "data": current_data_series,
+                "name": series_name,
+            }
+
+            data_series.append(final_data_series)
             all_scatter_points.append(current_scatter_points)
 
         return all_scatter_points, data_series

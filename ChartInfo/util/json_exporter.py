@@ -14,6 +14,9 @@ class ChartJSON_Exporter:
             tick_type = None
         else:
             # general validations
+            if axis_values.ticks is None:
+                raise Exception("Found axis without explicit tick annotations")
+
             if axis_values.has_invalid_assignments():
                 raise Exception("Found axis with ticks associated with invalid Labels")
 
@@ -66,6 +69,7 @@ class ChartJSON_Exporter:
 
                     axis_ticks.append(export_tick_info)
 
+        # print(axis_ticks)
         return axis_ticks, tick_type
 
     @staticmethod
@@ -185,13 +189,13 @@ class ChartJSON_Exporter:
 
             h1_axis, h1_tick_type = ChartJSON_Exporter.get_axis_info(chart_info.axes, chart_info.axes.x1_axis, y2, True)
             h2_axis, h2_tick_type = ChartJSON_Exporter.get_axis_info(chart_info.axes, chart_info.axes.x2_axis, y1, True)
-            v1_axis, v1_tick_type = ChartJSON_Exporter.get_axis_info(chart_info.axes, chart_info.axes.y1_axis, x1, True)
-            v2_axis, v2_tick_type = ChartJSON_Exporter.get_axis_info(chart_info.axes, chart_info.axes.y2_axis, x2, True)
+            v1_axis, v1_tick_type = ChartJSON_Exporter.get_axis_info(chart_info.axes, chart_info.axes.y1_axis, x1, False)
+            v2_axis, v2_tick_type = ChartJSON_Exporter.get_axis_info(chart_info.axes, chart_info.axes.y2_axis, x2, False)
 
             # TODO: should there be any special handling when a less common dependent axis is used?
             # ..... for example using Y-2 instead of Y-1 and X-2 instead of X-1 when the common option is empty?
 
-            if chart_info.is_vertical():
+            if chart_info.is_orientation_less() or chart_info.is_vertical():
                 # keep original axis assignments ..
                 x1_axis_ticks = ChartJSON_Exporter.prepare_axis_ticks(h1_axis)
                 x2_axis_ticks = ChartJSON_Exporter.prepare_axis_ticks(h2_axis)
@@ -219,13 +223,13 @@ class ChartJSON_Exporter:
                 '_plot_bb': plot_bb,
                 'axes': {
                     'x-axis': x1_axis_ticks,
-                    'x-tick-type': x1_tick_type,
+                    '_x-tick-type': x1_tick_type,
                     'y-axis': y1_axis_ticks,
-                    'y-tick-type': y1_tick_type,
+                    '_y-tick-type': y1_tick_type,
                     'x-axis-2': x2_axis_ticks,
-                    'x2-tick-type': x2_tick_type,
+                    '_x2-tick-type': x2_tick_type,
                     'y-axis-2': y2_axis_ticks,
-                    'y2-tick-type': y2_tick_type
+                    '_y2-tick-type': y2_tick_type
                 }
             }
 

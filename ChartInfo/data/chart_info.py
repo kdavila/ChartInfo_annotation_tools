@@ -10,6 +10,8 @@ from .box_data import BoxData
 from .line_data import LineData
 from .scatter_data import ScatterData
 
+from shapely.geometry import Polygon
+
 class ChartInfo:
     TypeNonChart = 0
     TypeLine = 1
@@ -42,6 +44,9 @@ class ChartInfo:
 
     def is_vertical(self):
         return self.orientation == ChartInfo.OrientationVertical
+
+    def is_orientation_less(self):
+        return self.orientation is None
 
     def set_verification(self, verification_name, verification_value):
         if verification_value:
@@ -99,10 +104,20 @@ class ChartInfo:
     def set_data_verified(self, verified):
         self.set_verification("VERIFIED_05_DATA", verified)
 
-    def get_all_text(self, text_type=None):
+    def get_text_region(self, text_info):
+        assert isinstance(text_info, TextInfo)
+
+        if self.axes is None or self.axes.bounding_box is None:
+            # unknown region for text
+            return None
+        else:
+            return self.axes.get_text_region(text_info)
+
+    def get_all_text(self, text_type=None, region=None):
         result = []
         for text_info in self.text:
-            if text_type is None or text_info.type == text_type:
+            if ((text_type is None or text_info.type == text_type) and
+                (region is None or region == self.get_text_region(text_info))):
                 result.append(text_info)
 
         return result

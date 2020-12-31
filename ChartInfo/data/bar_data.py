@@ -251,8 +251,8 @@ class BarData:
         # check if stacked bar chart ....
         is_stacked = self.total_layers() > 1
 
-        # check if bars have value labels ...
-        all_value_labels = chart_info.get_all_text(TextInfo.TypeValueLabel)
+        # check if bars have value labels ...inside of the plot region ...
+        all_value_labels = chart_info.get_all_text(TextInfo.TypeValueLabel, AxesInfo.RegionPlot)
         if len(all_value_labels) == len(bar_polygon_index):
             # there is one value label for each bar in the image... find the best assignments
             bar_idx_to_value_label = self.assign_value_labels_to_bars(bar_polygons, all_value_labels)
@@ -381,7 +381,7 @@ class BarData:
         bars = BarData.get_bar_polygons_JSON(bar_polygons)
         # Task 6.b
         data_series = self.get_data_series_JSON(chart_info, bar_polygons, bar_polygon_index)
-
+        print(data_series)
         return bars, data_series
 
     @staticmethod

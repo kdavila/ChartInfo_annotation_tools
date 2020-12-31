@@ -1,6 +1,7 @@
 
 import os
 import time
+import json
 
 import numpy as np
 import cv2
@@ -585,6 +586,11 @@ class ChartImageAnnotator(BaseImageAnnotator):
         print("Data saved to: " + self.annotation_filename)
         self.unsaved_changes = False
 
+    def save_json_file(self, json_content, json_filename):
+        with open(json_filename, "w") as tempo_file:
+            tempo_str = json.dumps(json_content, indent="\t")
+            tempo_file.write(tempo_str)
+
     def btn_auto_check_click(self, button):
         status = ImageInfo.GetAllStatuses(self.image_info)
 
@@ -597,8 +603,9 @@ class ChartImageAnnotator(BaseImageAnnotator):
         # class ...
         if status[1] >= 1:
             try:
-                ChartJSON_Exporter.prepare_chart_image_json(panel_info, false_status, 1, False)
+                tempo_json = ChartJSON_Exporter.prepare_chart_image_json(panel_info, false_status, 1, False)
                 print("Task 1: Annotation Seems Okay!")
+                self.save_json_file(tempo_json, "TEMPO_VALID_JSON.json")
             except Exception as e:
                 print("Errors on Task 1 data (Chart Image Classification): " + str(e))
                 return
@@ -606,24 +613,27 @@ class ChartImageAnnotator(BaseImageAnnotator):
         # text detection, classification and recognition ...
         if status[2] >= 1:
             try:
-                ChartJSON_Exporter.prepare_chart_image_json(panel_info, false_status, 3, False)
+                tempo_json = ChartJSON_Exporter.prepare_chart_image_json(panel_info, false_status, 3, False)
                 print("Tasks 2 and 3: Annotation Seems Okay!")
+                self.save_json_file(tempo_json, "TEMPO_VALID_JSON.json")
             except Exception as e:
                 print("Errors on Task 2 or 3 (Text Detection, Recognition, and Classification): " + str(e))
                 return
 
         if status[3] >= 1 and status[4] >= 1:
             try:
-                ChartJSON_Exporter.prepare_chart_image_json(panel_info, false_status, 5, False)
+                tempo_json = ChartJSON_Exporter.prepare_chart_image_json(panel_info, false_status, 5, False)
                 print("Tasks 4 and 5: Annotation Seems Okay!")
+                self.save_json_file(tempo_json, "TEMPO_VALID_JSON.json")
             except Exception as e:
                 print("Errors on Task 4 and/or 5 (Axes and Legend Recognition): " + str(e))
                 return
 
         if status[5] >= 1:
             try:
-                ChartJSON_Exporter.prepare_chart_image_json(panel_info, false_status, 7, False)
+                tempo_json = ChartJSON_Exporter.prepare_chart_image_json(panel_info, false_status, 7, False)
                 print("Tasks 6a/6b: Annotation Seems Okay!")
+                self.save_json_file(tempo_json, "TEMPO_VALID_JSON.json")
             except Exception as e:
                 print("Errors on Task 6a/6b (Data Extraction): " + str(e))
                 return
@@ -650,6 +660,7 @@ class ChartImageAnnotator(BaseImageAnnotator):
         text_annotator = ChartTextAnnotator(self.size, panel_image, self.image_info.panels[self.selected_panel], self,
                                             self.admin_mode)
         text_annotator.prepare_screen()
+        # text_annotator.copy_view(self)
 
         self.return_screen = text_annotator
 

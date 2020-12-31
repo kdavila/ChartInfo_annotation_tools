@@ -308,6 +308,7 @@ class AxisValues:
         # TODO: - Roman Numbers!
         # TODO: - Ordinals
         # TODO: - Some labels can be used by two axis (e.g. the zero)
+        # TODO: - External multipliers (an Axis-level value multiplier, usually from a Scale Text Label)
 
         str_val = str_val.lower()
 
@@ -317,10 +318,10 @@ class AxisValues:
 
         # TODO: This is a good place to capture potential units ....
         # keep this list sorted
-        known_units = ["s", "ms", "m", "cm", "mm", "$"]
+        known_units = ["usd","s", "ms", "m", "cm", "mm", "$", "x", "€", "£"]
         known_units = sorted([(len(unit), unit) for unit in known_units], reverse=True)
         for l, unit in known_units:
-            if unit in str_val:
+            if not (unit in "times" and "times" in str_val) and (unit in str_val):
                 str_val = str_val.replace(unit, "")
 
         if "%" in str_val:

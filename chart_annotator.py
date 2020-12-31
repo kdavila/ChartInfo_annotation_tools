@@ -36,7 +36,7 @@ def main():
     small_mode = (len(sys.argv) >= 3) and (sys.argv[2].lower() == "small")
     large_mode = (len(sys.argv) >= 3) and (sys.argv[2].lower() == "large")
 
-    admin_mode = config.get_bool("ENABLE_ADMIN_MODE", False)
+    admin_mode = config.get_bool("ENABLE_ADMIN_MODE", True)
 
     if admin_mode:
         print("Admin mode enable!")

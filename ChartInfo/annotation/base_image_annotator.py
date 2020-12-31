@@ -188,7 +188,19 @@ class BaseImageAnnotator(Screen):
         self.canvas_display.object_edited_callback = self.canvas_display_object_edited
         self.container_images.append(self.canvas_display)
 
+    def copy_view(self, other_window):
+        # buggy ... need to fix some canvas sizing issues ....
+        """
+        self.view_scale = other_window.view_scale
+        self.view_mode = other_window.view_mode
+        self.update_current_view(True)
 
+        self.container_images.v_scroll.active = other_window.container_images.v_scroll.active
+        self.container_images.v_scroll.value = other_window.container_images.v_scroll.value
+        self.container_images.h_scroll.active = other_window.container_images.h_scroll.active
+        self.container_images.h_scroll.value = other_window.container_images.h_scroll.value
+        """
+        pass
 
     def btn_zoom_reduce_click(self, button):
         if self.view_scale <= 1.0:
