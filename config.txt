@@ -1,5 +1,5 @@
 
-CHART_DIRECTORY = data/images
-CHART_ANNOTATIONS = data/annotations
+CHART_DIRECTORY = ../dotgraphs
+CHART_ANNOTATIONS = ../dotgraphs
 
 ENABLE_ADMIN_MODE = 1

@@ -424,6 +424,9 @@ class AxisValues:
 
     @staticmethod
     def FindClosestValue(axes, axis_values, vertical_axis, pixel_value):
+        '''
+        for tomorrow benji: something is wrong with the way this gets called when you've got a categorical horizontal axis
+        '''
         label_positions = axis_values.get_tick_type_value_positions(vertical_axis, axes.tick_labels)
 
         if len(label_positions) == 0:

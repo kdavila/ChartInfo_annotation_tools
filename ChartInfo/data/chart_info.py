@@ -8,6 +8,7 @@ from .axes_info import AxesInfo
 from .bar_data import BarData
 from .box_data import BoxData
 from .line_data import LineData
+from .dot_data import DotData
 from .scatter_data import ScatterData
 
 from shapely.geometry import Polygon
@@ -18,6 +19,7 @@ class ChartInfo:
     TypeScatter = 2
     TypeBar = 3
     TypeBox = 4
+    TypeDot= 5
 
     # Types which are only partially supported
     TypePie = 11
@@ -180,6 +182,8 @@ class ChartInfo:
             type_str = "bar"
         elif self.type == ChartInfo.TypeBox:
             type_str = "box"
+        elif self.type == ChartInfo.TypeDot:
+            type_str = "dot"
 
         elif self.type == ChartInfo.TypePie:
             type_str = "pie"
@@ -225,6 +229,8 @@ class ChartInfo:
             chart_type = ChartInfo.TypeBar
         elif type_str == "box":
             chart_type = ChartInfo.TypeBox
+        elif type_str == "dot":
+            chart_type = ChartInfo.TypeDot
 
         elif type_str == "pie":
             chart_type = ChartInfo.TypePie
@@ -335,6 +341,8 @@ class ChartInfo:
                 chart.data = LineData.FromXML(xml_data_root, chart_text_index)
             elif data_class == "ScatterData":
                 chart.data = ScatterData.FromXML(xml_data_root, chart_text_index)
+            elif data_class == "DotData":
+                chart.data = DotData.FromXML(xml_data_root, chart_text_index)
             else:
                 raise Exception("Support to read data annotations from this chart type not implemented!")
 

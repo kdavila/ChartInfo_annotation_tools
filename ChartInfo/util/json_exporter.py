@@ -293,6 +293,7 @@ class ChartJSON_Exporter:
             boxes = []
             lines = []
             scatter_points = []
+            dot_points = []
 
             # run the parsing function .... (chart type dependent)
             if chart_info.type == ChartInfo.TypeBar:
@@ -303,6 +304,8 @@ class ChartJSON_Exporter:
                 lines, data_series = chart_info.data.parse_data(chart_info)
             elif chart_info.type == ChartInfo.TypeScatter:
                 scatter_points, data_series = chart_info.data.parse_data(chart_info)
+            elif chart_info.type == ChartInfo.TypeDot:
+                dot_points, data_series = chart_info.data.parse_data(chart_info)
             else:
                 raise Exception("Cannot Export Data for Type of Chart: " + str(chart_info.type))
 
@@ -314,6 +317,7 @@ class ChartJSON_Exporter:
                     "boxplots": boxes,
                     "lines": lines,
                     "scatter points": scatter_points,
+                    "dot points": dot_points,
                 }
             }
 

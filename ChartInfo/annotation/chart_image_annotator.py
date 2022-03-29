@@ -27,6 +27,7 @@ from ChartInfo.annotation.bar_chart_annotator import BarChartAnnotator
 from ChartInfo.annotation.box_chart_annotator import BoxChartAnnotator
 from ChartInfo.annotation.line_chart_annotator import LineChartAnnotator
 from ChartInfo.annotation.scatter_chart_annotator import ScatterChartAnnotator
+from ChartInfo.annotation.dot_chart_annotator import DotChartAnnotator
 
 from ChartInfo.util.time_stats import TimeStats
 from ChartInfo.util.json_exporter import ChartJSON_Exporter
@@ -434,11 +435,19 @@ class ChartImageAnnotator(BaseImageAnnotator):
                                               "Bar Chart (Horizontal)")
         self.lbx_class_panel_class.add_option(str(ChartInfo.TypeBar) + "-" + str(ChartInfo.OrientationVertical),
                                               "Bar Chart (Vertical)")
+        
+        # horizontal dot graphs are those with the numerical axis on the bottom
+        self.lbx_class_panel_class.add_option(str(ChartInfo.TypeDot) + "-" + str(ChartInfo.OrientationHorizontal),
+                                              "Dot Graph (Horizontal)")
+        self.lbx_class_panel_class.add_option(str(ChartInfo.TypeDot) + "-" + str(ChartInfo.OrientationVertical),
+                                              "Dot Graph (Vertical)")
 
-        self.lbx_class_panel_class.add_option(str(ChartInfo.TypeBox) + "-" + str(ChartInfo.OrientationHorizontal),
-                                              "Box Chart (Horizontal)")
-        self.lbx_class_panel_class.add_option(str(ChartInfo.TypeBox) + "-" + str(ChartInfo.OrientationVertical),
-                                              "Box Chart (Vertical)")
+        # removing the option to label as box chart to minimize confusion  
+        
+        # self.lbx_class_panel_class.add_option(str(ChartInfo.TypeBox) + "-" + str(ChartInfo.OrientationHorizontal),
+        #                                       "Box Chart (Horizontal)")
+        # self.lbx_class_panel_class.add_option(str(ChartInfo.TypeBox) + "-" + str(ChartInfo.OrientationVertical),
+        #                                       "Box Chart (Vertical)")
 
     def prepare_screen(self):
         if self.wait_mode != ChartImageAnnotator.WaitModeNone:
@@ -715,6 +724,8 @@ class ChartImageAnnotator(BaseImageAnnotator):
             data_annotator = LineChartAnnotator(self.size, panel_image, current_panel, self)
         elif self.image_info.panels[self.selected_panel].type == ChartInfo.TypeScatter:
             data_annotator = ScatterChartAnnotator(self.size, panel_image, current_panel, self)
+        elif self.image_info.panels[self.selected_panel].type == ChartInfo.TypeDot:
+            data_annotator = DotChartAnnotator(self.size, panel_image, current_panel, self)
         else:
             raise Exception("Not implemented!!")
 
