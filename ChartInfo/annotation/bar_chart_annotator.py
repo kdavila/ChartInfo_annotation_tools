@@ -682,7 +682,8 @@ class BarChartAnnotator(BaseImageAnnotator):
 
                     # For drawing ...
                     if self.edition_mode in [BarChartAnnotator.ModeDataEdit, BarChartAnnotator.ModeDataSelect]:
-                        self.tempo_green_lines += [polygons[self.tempo_data_layer]]
+                        if self.tempo_data_layer < len(polygons):
+                            self.tempo_green_lines += [polygons[self.tempo_data_layer]]
                         self.tempo_red_lines += polygons[:self.tempo_data_layer]
                         self.tempo_red_lines += polygons[self.tempo_data_layer + 1:]
                     else:
@@ -714,7 +715,8 @@ class BarChartAnnotator(BaseImageAnnotator):
 
                     # for drawing ...
                     if self.edition_mode in [BarChartAnnotator.ModeDataEdit, BarChartAnnotator.ModeDataSelect]:
-                        self.tempo_green_lines += [polygons[self.tempo_data_layer]]
+                        if self.tempo_data_layer < len(polygons):
+                            self.tempo_green_lines += [polygons[self.tempo_data_layer]]
                         self.tempo_red_lines += polygons[:self.tempo_data_layer]
                         self.tempo_red_lines += polygons[self.tempo_data_layer + 1:]
                     else:
