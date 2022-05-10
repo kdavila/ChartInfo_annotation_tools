@@ -132,9 +132,14 @@ class ChartLegendAnnotator(BaseImageAnnotator):
             min_x, min_y, max_x, max_y = txt_label.get_axis_aligned_rectangle()
 
             binarized[int(min_y):int(max_y), int(min_x):int(max_x)] = 0
-
+        
         # get the CC ...
         num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(binarized)
+
+        if num_labels == 1:
+            # no CC found ... nothing else to do 
+            return
+        
         # ... get CC stats ...
         cc_boxes = np.zeros((num_labels - 1, 4), dtype=np.int32)
         for cc_idx in range(1, num_labels):
