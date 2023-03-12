@@ -842,7 +842,7 @@ class ChartTextAnnotator(BaseImageAnnotator):
         # the perspective transformation matrix
         M = cv2.getPerspectiveTransform(src_pts, dst_pts)
         # directly warp the rotated rectangle to get the straightened rectangle
-        warped = cv2.warpPerspective(img, M, (width, height), None, cv2.INTER_LINEAR, cv2.BORDER_CONSTANT,
+        warped = cv2.warpPerspective(img, M, (int(width), int(height)), None, cv2.INTER_LINEAR, cv2.BORDER_CONSTANT,
                                      (255, 255, 255))
         return warped
 
