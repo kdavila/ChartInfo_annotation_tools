@@ -1,4 +1,5 @@
 
+import time
 import numpy as np
 import cv2
 
@@ -55,6 +56,9 @@ class LineChartAnnotator(BaseImageAnnotator):
 
         self.elements.back_color = self.general_background
         self.edition_mode = None
+
+        self.last_shift_direction = None
+        self.last_shift_time = None
 
         self.tempo_line_index = None
         self.tempo_point_index = None
@@ -1082,9 +1086,32 @@ class LineChartAnnotator(BaseImageAnnotator):
     def btn_swap_return_cancel_click(self, button):
         self.set_editor_mode(LineChartAnnotator.ModeLineSelect)
 
+
+    def get_shift_button_delta(self, direction):
+        current_time = time.time()
+        # check
+        if self.last_shift_direction != direction:
+            # previous direction is different
+            # (will always be different the first time the button is used)
+            self.last_shift_direction = direction
+            delta = 1.0
+        else:
+            # previous direction is the same, check for time between clicks
+            if current_time - self.last_shift_time < 2.0:
+                # go faster
+                delta = 3.0
+            else:
+                # long time ago, just use precision
+                delta = 1.0
+        self.last_shift_time = current_time
+
+        return delta
+
     def btn_line_point_shift_up_click(self, button):
+        delta = self.get_shift_button_delta(1)
+
         # ... add point ...
-        self.tempo_line_values.shift_all_points(0, 1.0)
+        self.tempo_line_values.shift_all_points(0, delta)
 
         # update GUI
         # ... canvas ....
@@ -1094,8 +1121,10 @@ class LineChartAnnotator(BaseImageAnnotator):
         self.update_points_list()
 
     def btn_line_point_shift_down_click(self, button):
+        delta = self.get_shift_button_delta(2)
+
         # ... add point ...
-        self.tempo_line_values.shift_all_points(0, -1.0)
+        self.tempo_line_values.shift_all_points(0, -delta)
 
         # update GUI
         # ... canvas ....
@@ -1105,8 +1134,10 @@ class LineChartAnnotator(BaseImageAnnotator):
         self.update_points_list()
 
     def btn_line_point_shift_left_click(self, button):
+        delta = self.get_shift_button_delta(3)
+
         # ... add point ...
-        self.tempo_line_values.shift_all_points(-1.0, 0.0)
+        self.tempo_line_values.shift_all_points(-delta, 0.0)
 
         # update GUI
         # ... canvas ....
@@ -1116,8 +1147,10 @@ class LineChartAnnotator(BaseImageAnnotator):
         self.update_points_list()
 
     def btn_line_point_shift_right_click(self, button):
+        delta = self.get_shift_button_delta(4)
+
         # ... add point ...
-        self.tempo_line_values.shift_all_points(1.0, 0.0)
+        self.tempo_line_values.shift_all_points(delta, 0.0)
 
         # update GUI
         # ... canvas ....
