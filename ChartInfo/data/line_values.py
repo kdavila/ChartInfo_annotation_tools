@@ -91,6 +91,10 @@ class LineValues:
             closest_dist, closest_idx = all_distances[0]
             self.points.insert(closest_idx + 1, (x, y))
 
+    def shift_all_points(self, delta_x, delta_y):
+        for idx, (x, y) in enumerate(self.points):
+            self.points[idx] = (x + delta_x, y + delta_y)
+
     def add_point_by_axis_value(self, x, y, axis):
         if len(self.points) == 0:
             # simply add ....

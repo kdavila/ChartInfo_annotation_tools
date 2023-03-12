@@ -108,6 +108,11 @@ class LineChartAnnotator(BaseImageAnnotator):
         self.btn_line_point_edit = None
         self.btn_line_point_delete = None
         self.btn_line_point_add = None
+        self.lbl_line_points_shift = None
+        self.btn_line_point_shift_up = None
+        self.btn_line_point_shift_down = None
+        self.btn_line_point_shift_left = None
+        self.btn_line_point_shift_right = None
         self.btn_line_return_accept = None
         self.btn_line_return_cancel = None
 
@@ -141,6 +146,13 @@ class LineChartAnnotator(BaseImageAnnotator):
         button_2_width = 130
         button_2_left = int(container_width * 0.25) - button_2_width / 2
         button_2_right = int(container_width * 0.75) - button_2_width / 2
+
+        button_4_width = 65
+        button_4_x1 = int(container_width * 0.1400) - button_4_width / 2
+        button_4_x2 = int(container_width * 0.3800) - button_4_width / 2
+        button_4_x3 = int(container_width * 0.6200) - button_4_width / 2
+        button_4_x4 = int(container_width * 0.8600) - button_4_width / 2
+        
 
         # ===========================
         # View Options Panel
@@ -349,7 +361,7 @@ class LineChartAnnotator(BaseImageAnnotator):
 
         # ==============================
         # line annotation options
-        self.container_line_buttons = ScreenContainer("container_line_buttons", (container_width, 450),
+        self.container_line_buttons = ScreenContainer("container_line_buttons", (container_width, 550),
                                                       back_color=darker_background)
         self.container_line_buttons.position = (self.container_view_buttons.get_left(),
                                                 self.container_view_buttons.get_bottom() + 20)
@@ -392,15 +404,45 @@ class LineChartAnnotator(BaseImageAnnotator):
         self.btn_line_point_delete.click_callback = self.btn_line_point_delete_click
         self.container_line_buttons.append(self.btn_line_point_delete)
 
+        self.lbl_line_points_shift = ScreenLabel("lbl_line_points_shift", "Shift All Points", 18, 290, 1)
+        self.lbl_line_points_shift.position = (5, self.btn_line_point_delete.get_bottom() + 20)
+        self.lbl_line_points_shift.set_background(darker_background)
+        self.lbl_line_points_shift.set_color(self.text_color)
+        self.container_line_buttons.append(self.lbl_line_points_shift)
+
+        self.btn_line_point_shift_up = ScreenButton("btn_line_point_shift_up", "Up", 17, button_4_width)
+        self.btn_line_point_shift_up.set_colors(button_text_color, button_back_color)
+        self.btn_line_point_shift_up.position = (button_4_x1, self.lbl_line_points_shift.get_bottom() + 10)
+        self.btn_line_point_shift_up.click_callback = self.btn_line_point_shift_up_click
+        self.container_line_buttons.append(self.btn_line_point_shift_up)
+
+        self.btn_line_point_shift_down = ScreenButton("btn_line_point_shift_down", "Down", 17, button_4_width)
+        self.btn_line_point_shift_down.set_colors(button_text_color, button_back_color)
+        self.btn_line_point_shift_down.position = (button_4_x2, self.lbl_line_points_shift.get_bottom() + 10)
+        self.btn_line_point_shift_down.click_callback = self.btn_line_point_shift_down_click
+        self.container_line_buttons.append(self.btn_line_point_shift_down)
+
+        self.btn_line_point_shift_left = ScreenButton("btn_line_point_shift_left", "Left", 17, button_4_width)
+        self.btn_line_point_shift_left.set_colors(button_text_color, button_back_color)
+        self.btn_line_point_shift_left.position = (button_4_x3, self.lbl_line_points_shift.get_bottom() + 10)
+        self.btn_line_point_shift_left.click_callback = self.btn_line_point_shift_left_click
+        self.container_line_buttons.append(self.btn_line_point_shift_left)
+
+        self.btn_line_point_shift_right = ScreenButton("btn_line_point_shift_right", "Right", 17, button_4_width)
+        self.btn_line_point_shift_right.set_colors(button_text_color, button_back_color)
+        self.btn_line_point_shift_right.position = (button_4_x4, self.lbl_line_points_shift.get_bottom() + 10)
+        self.btn_line_point_shift_right.click_callback = self.btn_line_point_shift_right_click
+        self.container_line_buttons.append(self.btn_line_point_shift_right)
+
         self.btn_line_return_accept = ScreenButton("btn_line_return_accept", "Accept", 21, button_2_width)
         self.btn_line_return_accept.set_colors(button_text_color, button_back_color)
-        self.btn_line_return_accept.position = (button_2_left, self.btn_line_point_delete.get_bottom() + 20)
+        self.btn_line_return_accept.position = (button_2_left, self.btn_line_point_shift_up.get_bottom() + 20)
         self.btn_line_return_accept.click_callback = self.btn_line_return_accept_click
         self.container_line_buttons.append(self.btn_line_return_accept)
 
         self.btn_line_return_cancel = ScreenButton("btn_line_return_cancel", "Cancel", 21, button_2_width)
         self.btn_line_return_cancel.set_colors(button_text_color, button_back_color)
-        self.btn_line_return_cancel.position = (button_2_right, self.btn_line_point_delete.get_bottom() + 20)
+        self.btn_line_return_cancel.position = (button_2_right, self.btn_line_point_shift_up.get_bottom() + 20)
         self.btn_line_return_cancel.click_callback = self.btn_line_return_cancel_click
         self.container_line_buttons.append(self.btn_line_return_cancel)
 
@@ -1039,3 +1081,47 @@ class LineChartAnnotator(BaseImageAnnotator):
 
     def btn_swap_return_cancel_click(self, button):
         self.set_editor_mode(LineChartAnnotator.ModeLineSelect)
+
+    def btn_line_point_shift_up_click(self, button):
+        # ... add point ...
+        self.tempo_line_values.shift_all_points(0, 1.0)
+
+        # update GUI
+        # ... canvas ....
+        pl_points = self.line_points_to_canvas_points(self.tempo_line_values.points)
+        self.canvas_display.update_polyline_element(self.tempo_canvas_name, pl_points, True)
+        # ... list of points ....
+        self.update_points_list()
+
+    def btn_line_point_shift_down_click(self, button):
+        # ... add point ...
+        self.tempo_line_values.shift_all_points(0, -1.0)
+
+        # update GUI
+        # ... canvas ....
+        pl_points = self.line_points_to_canvas_points(self.tempo_line_values.points)
+        self.canvas_display.update_polyline_element(self.tempo_canvas_name, pl_points, True)
+        # ... list of points ....
+        self.update_points_list()
+
+    def btn_line_point_shift_left_click(self, button):
+        # ... add point ...
+        self.tempo_line_values.shift_all_points(-1.0, 0.0)
+
+        # update GUI
+        # ... canvas ....
+        pl_points = self.line_points_to_canvas_points(self.tempo_line_values.points)
+        self.canvas_display.update_polyline_element(self.tempo_canvas_name, pl_points, True)
+        # ... list of points ....
+        self.update_points_list()
+
+    def btn_line_point_shift_right_click(self, button):
+        # ... add point ...
+        self.tempo_line_values.shift_all_points(1.0, 0.0)
+
+        # update GUI
+        # ... canvas ....
+        pl_points = self.line_points_to_canvas_points(self.tempo_line_values.points)
+        self.canvas_display.update_polyline_element(self.tempo_canvas_name, pl_points, True)
+        # ... list of points ....
+        self.update_points_list()
