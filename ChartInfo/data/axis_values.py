@@ -345,10 +345,16 @@ class AxisValues:
         # Handle scientific notation (including LaTeX strings)
         if "x10" in str_val:
             str_val = str_val.replace("x10", "E")
+        if "x 10" in str_val:
+            str_val = str_val.replace("x 10", "E")
         if "*10" in str_val:
             str_val = str_val.replace("*10", "E")
+        if "* 10" in str_val:
+            str_val = str_val.replace("* 10", "E")
         if "\\times10^" in str_val:
             str_val = str_val.replace("\\times10", "E")
+        if "\\times 10^" in str_val:
+            str_val = str_val.replace("\\times 10", "E")
         if str_val[:3] == "10^":
             # directly starts with power of 10 and previous test would fail and next one would destroy value...
             # replace
