@@ -138,6 +138,7 @@ class ChartAxesAnnotator(BaseImageAnnotator):
         self.btn_ticks_decrease = None
         self.btn_ticks_increase = None
         self.btn_ticks_redistribute = None
+        self.btn_ticks_auto = None
         self.lbx_ticks_list = None
         self.btn_ticks_set = None
         self.btn_ticks_return = None
@@ -517,11 +518,18 @@ class ChartAxesAnnotator(BaseImageAnnotator):
         self.btn_ticks_increase.click_callback = self.btn_ticks_increase_click
         self.container_ticks_buttons.append(self.btn_ticks_increase)
 
-        self.btn_ticks_redistribute = ScreenButton("btn_ticks_redistribute", "Redistribute", 21, button_width)
+        self.btn_ticks_redistribute = ScreenButton("btn_ticks_redistribute", "Redistribute", 21, button_2_width)
         self.btn_ticks_redistribute.set_colors(button_text_color, button_back_color)
-        self.btn_ticks_redistribute.position = (button_left, self.btn_ticks_decrease.get_bottom() + 10)
+        self.btn_ticks_redistribute.position = (button_2_left, self.btn_ticks_decrease.get_bottom() + 10)
         self.btn_ticks_redistribute.click_callback = self.btn_ticks_redistribute_click
         self.container_ticks_buttons.append(self.btn_ticks_redistribute)
+
+
+        self.btn_ticks_auto = ScreenButton("btn_ticks_auto", "Auto Add", 21, button_2_width)
+        self.btn_ticks_auto.set_colors(button_text_color, button_back_color)
+        self.btn_ticks_auto.position = (button_2_right, self.btn_ticks_decrease.get_bottom() + 10)
+        self.btn_ticks_auto.click_callback = self.btn_ticks_auto_click
+        self.container_ticks_buttons.append(self.btn_ticks_auto)
 
         self.lbx_ticks_list = ScreenTextlist("lbx_ticks_list", (container_width - 20, 200), 18,
                                              back_color=(255,255,255), option_color=(0, 0, 0),
@@ -2112,4 +2120,25 @@ class ChartAxesAnnotator(BaseImageAnnotator):
                 zoom_cut[:, ref_pixel_x - cut_min_x] = (255, 0, 0)
 
             self.img_preview.set_image(zoom_cut, 200, 200)
+
+    def btn_ticks_auto_click(self, button):
+        self.tempo_ticks = []
+
+        for text_id in self.axes.tick_labels:
+            current_text = self.axes.tick_labels[text_id]
+
+            # self.tempo_axis_values
+            if text_id in self.tempo_axis_values.labels:
+                c_x, c_y = current_text.get_center()
+
+                if self.edit_axis in [ChartAxesAnnotator.AxisX1, ChartAxesAnnotator.AxisX2]:
+                    # Horizontal axis ... use x
+                    self.tempo_ticks.append(TickInfo(c_x, text_id))
+
+                elif self.edit_axis in [ChartAxesAnnotator.AxisY1, ChartAxesAnnotator.AxisY2]:
+                    # Vertical axis ... use y
+                    self.tempo_ticks.append(TickInfo(c_y, text_id))
+
+        self.update_tick_GUI()
+        self.update_current_view(False)
 
