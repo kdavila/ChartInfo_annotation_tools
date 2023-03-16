@@ -2124,6 +2124,7 @@ class ChartAxesAnnotator(BaseImageAnnotator):
     def btn_ticks_auto_click(self, button):
         self.tempo_ticks = []
 
+        tempo_positions = []
         for text_id in self.axes.tick_labels:
             current_text = self.axes.tick_labels[text_id]
 
@@ -2133,11 +2134,17 @@ class ChartAxesAnnotator(BaseImageAnnotator):
 
                 if self.edit_axis in [ChartAxesAnnotator.AxisX1, ChartAxesAnnotator.AxisX2]:
                     # Horizontal axis ... use x
-                    self.tempo_ticks.append(TickInfo(c_x, text_id))
+                    tempo_positions.append((c_x, text_id))
 
                 elif self.edit_axis in [ChartAxesAnnotator.AxisY1, ChartAxesAnnotator.AxisY2]:
                     # Vertical axis ... use y
-                    self.tempo_ticks.append(TickInfo(c_y, text_id))
+                    tempo_positions.append((c_y, text_id))
+
+        # sort (by cx or cy)
+        tempo_positions = sorted(tempo_positions)
+        # now, add the ticks after sorting
+        for val, text_id in tempo_positions:
+            self.tempo_ticks.append(TickInfo(val, text_id))
 
         self.update_tick_GUI()
         self.update_current_view(False)
