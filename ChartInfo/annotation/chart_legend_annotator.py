@@ -72,6 +72,19 @@ class ChartLegendAnnotator(BaseImageAnnotator):
         self.btn_return_accept = None
         self.btn_return_cancel = None
 
+        self.container_legend_edit = None
+        self.btn_edit_force_box = None
+        self.lbl_edit_shift = None
+        self.btn_edit_shift_up = None
+        self.btn_edit_shift_down = None
+        self.btn_edit_shift_left = None
+        self.btn_edit_shift_right = None
+        self.lbl_edit_size = None
+        self.btn_edit_width_shrink = None
+        self.btn_edit_width_expand = None
+        self.btn_edit_height_shrink = None
+        self.btn_edit_height_expand = None
+
         self.create_controllers()
 
         # get the view ...
@@ -270,6 +283,12 @@ class ChartLegendAnnotator(BaseImageAnnotator):
         button_2_left = int(container_width * 0.25) - button_2_width / 2
         button_2_right = int(container_width * 0.75) - button_2_width / 2
 
+        button_4_width = 65
+        button_4_x1 = int(container_width * 0.1400) - button_4_width / 2
+        button_4_x2 = int(container_width * 0.3800) - button_4_width / 2
+        button_4_x3 = int(container_width * 0.6200) - button_4_width / 2
+        button_4_x4 = int(container_width * 0.8600) - button_4_width / 2
+
         # ===========================
         # View Options Panel
 
@@ -355,7 +374,7 @@ class ChartLegendAnnotator(BaseImageAnnotator):
         # ======================================
         # legend entry edition options ....
         darker_background = (55, 45, 100)
-        self.container_legend_edit  = ScreenContainer("container_legend_edit", (container_width, 150),
+        self.container_legend_edit  = ScreenContainer("container_legend_edit", (container_width, 200),
                                                         back_color=darker_background)
         self.container_legend_edit.position = (self.container_confirm_buttons.get_left(),
                                                   self.container_confirm_buttons.get_bottom() + 20)
@@ -367,6 +386,66 @@ class ChartLegendAnnotator(BaseImageAnnotator):
         self.btn_edit_force_box.position = (button_left, 10)
         self.btn_edit_force_box.click_callback = self.btn_edit_force_box_click
         self.container_legend_edit.append(self.btn_edit_force_box)
+
+        self.lbl_edit_shift = ScreenLabel("lbl_edit_shift", "Shift All Points", 18, 290, 1)
+        self.lbl_edit_shift.position = (5, self.btn_edit_force_box.get_bottom() + 20)
+        self.lbl_edit_shift.set_background(darker_background)
+        self.lbl_edit_shift.set_color(self.text_color)
+        self.container_legend_edit.append(self.lbl_edit_shift)
+
+        self.btn_edit_shift_up = ScreenButton("btn_edit_shift_up", "Up", 17, button_4_width)
+        self.btn_edit_shift_up.set_colors(button_text_color, button_back_color)
+        self.btn_edit_shift_up.position = (button_4_x1, self.lbl_edit_shift.get_bottom() + 10)
+        self.btn_edit_shift_up.click_callback = self.btn_edit_shift_up_click
+        self.container_legend_edit.append(self.btn_edit_shift_up)
+
+        self.btn_edit_shift_down = ScreenButton("btn_edit_shift_down", "Down", 17, button_4_width)
+        self.btn_edit_shift_down.set_colors(button_text_color, button_back_color)
+        self.btn_edit_shift_down.position = (button_4_x2, self.lbl_edit_shift.get_bottom() + 10)
+        self.btn_edit_shift_down.click_callback = self.btn_edit_shift_down_click
+        self.container_legend_edit.append(self.btn_edit_shift_down)
+
+        self.btn_edit_shift_left = ScreenButton("btn_edit_shift_left", "Left", 17, button_4_width)
+        self.btn_edit_shift_left.set_colors(button_text_color, button_back_color)
+        self.btn_edit_shift_left.position = (button_4_x3, self.lbl_edit_shift.get_bottom() + 10)
+        self.btn_edit_shift_left.click_callback = self.btn_edit_shift_left_click
+        self.container_legend_edit.append(self.btn_edit_shift_left)
+
+        self.btn_edit_shift_right = ScreenButton("btn_edit_shift_right", "Right", 17, button_4_width)
+        self.btn_edit_shift_right.set_colors(button_text_color, button_back_color)
+        self.btn_edit_shift_right.position = (button_4_x4, self.lbl_edit_shift.get_bottom() + 10)
+        self.btn_edit_shift_right.click_callback = self.btn_edit_shift_right_click
+        self.container_legend_edit.append(self.btn_edit_shift_right)
+
+        self.lbl_edit_size = ScreenLabel("lbl_edit_size", "Adjust Size", 18, 290, 1)
+        self.lbl_edit_size.position = (5, self.btn_edit_shift_up.get_bottom() + 20)
+        self.lbl_edit_size.set_background(darker_background)
+        self.lbl_edit_size.set_color(self.text_color)
+        self.container_legend_edit.append(self.lbl_edit_size)
+
+        self.btn_edit_width_expand = ScreenButton("btn_edit_width_expand", "W+", 17, button_4_width)
+        self.btn_edit_width_expand.set_colors(button_text_color, button_back_color)
+        self.btn_edit_width_expand.position = (button_4_x1, self.lbl_edit_size.get_bottom() + 10)
+        self.btn_edit_width_expand.click_callback = self.btn_edit_width_expand_click
+        self.container_legend_edit.append(self.btn_edit_width_expand)
+
+        self.btn_edit_width_shrink = ScreenButton("btn_edit_width_shrink", "W-", 17, button_4_width)
+        self.btn_edit_width_shrink.set_colors(button_text_color, button_back_color)
+        self.btn_edit_width_shrink.position = (button_4_x2, self.lbl_edit_size.get_bottom() + 10)
+        self.btn_edit_width_shrink.click_callback = self.btn_edit_width_shrink_click
+        self.container_legend_edit.append(self.btn_edit_width_shrink)
+
+        self.btn_edit_height_expand = ScreenButton("btn_edit_height_expand", "H+", 17, button_4_width)
+        self.btn_edit_height_expand.set_colors(button_text_color, button_back_color)
+        self.btn_edit_height_expand.position = (button_4_x3, self.lbl_edit_size.get_bottom() + 10)
+        self.btn_edit_height_expand.click_callback = self.btn_edit_height_expand_click
+        self.container_legend_edit.append(self.btn_edit_height_expand)
+
+        self.btn_edit_height_shrink = ScreenButton("btn_edit_height_shrink", "H-", 17, button_4_width)
+        self.btn_edit_height_shrink.set_colors(button_text_color, button_back_color)
+        self.btn_edit_height_shrink.position = (button_4_x4, self.lbl_edit_size.get_bottom() + 10)
+        self.btn_edit_height_shrink.click_callback = self.btn_edit_height_shrink_click
+        self.container_legend_edit.append(self.btn_edit_height_shrink)
 
 
         # ======================================
@@ -598,3 +677,55 @@ class ChartLegendAnnotator(BaseImageAnnotator):
                         # simulate click on edit button ....
                         self.btn_legend_edit_click(None)
                         break
+
+    def _shift_selection_polygon(self, shift):
+        legend_entry_polygon = self.canvas_select.elements["selection_polygon"].points / self.view_scale
+        legend_entry_polygon += shift
+        self.canvas_select.elements["selection_polygon"].update(legend_entry_polygon * self.view_scale)
+
+    def btn_edit_shift_up_click(self, button):
+        # move one pixel up
+        self._shift_selection_polygon(np.array([0, -1.0]))
+
+    def btn_edit_shift_down_click(self, button):
+        # move one pixel down
+        self._shift_selection_polygon(np.array([0, 1.0]))
+
+    def btn_edit_shift_left_click(self, button):
+        # move one pixel left
+        self._shift_selection_polygon(np.array([-1.0, 0.0]))
+
+    def btn_edit_shift_right_click(self, button):
+        # move one pixel right
+        self._shift_selection_polygon(np.array([1.0, 0.0]))
+
+    def _adjust_selection_polygon_size(self, dim, delta):
+        # move the right (dim=0) or bottom (dim=1) pixels
+        legend_entry_polygon = self.canvas_select.elements["selection_polygon"].points / self.view_scale
+
+        # get centroid ...
+        avg_size = legend_entry_polygon[:, dim].mean()
+
+        for idx in range(legend_entry_polygon.shape[0]):
+            # apply shift using delta on corresponding dimension
+            if legend_entry_polygon[idx, dim] >= avg_size:
+                legend_entry_polygon[idx, dim] += delta
+
+        self.canvas_select.elements["selection_polygon"].update(legend_entry_polygon * self.view_scale)
+
+    def btn_edit_width_shrink_click(self, button):
+        # move the right-most pixels to the left
+        self._adjust_selection_polygon_size(0, -1)
+
+    def btn_edit_width_expand_click(self, button):
+        # move the right-most pixels to the right
+        self._adjust_selection_polygon_size(0, 1)
+
+    def btn_edit_height_shrink_click(self, button):
+        # move the bottom pixels upwards
+        self._adjust_selection_polygon_size(1, -1)
+
+    def btn_edit_height_expand_click(self, button):
+        # move the bottom pixels downwards
+        self._adjust_selection_polygon_size(1, 1)
+
