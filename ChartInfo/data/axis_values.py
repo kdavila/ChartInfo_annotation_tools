@@ -317,12 +317,25 @@ class AxisValues:
         str_val = AxisValues.RemoveThousandsSeparator(str_val)
 
         # TODO: This is a good place to capture potential units ....
-        # keep this list sorted
+        # keep this list sorted ... in decreasing order so "mm" will be handled before "m"
         known_units = ["usd","s", "ms", "m", "cm", "mm", "$", "x", "€", "£"]
         known_units = sorted([(len(unit), unit) for unit in known_units], reverse=True)
         for l, unit in known_units:
-            if not (unit in "times" and "times" in str_val) and (unit in str_val):
-                str_val = str_val.replace(unit, "")
+            if unit in "times" and "times" in str_val:
+                # some units are substrings of "times"
+                # but times is valid latex ... do not remove the unit candidate
+                continue
+
+            if unit in str_val:
+                # TODO: should this rule be extended to all units ???
+                # check if unit is "x"
+                if unit == "x":
+                    # only treat as unit and remove if it appears at the end of the string
+                    if len(str_val[str_val.index(unit) + len(unit):].strip()) == 0:
+                        str_val = str_val.replace(unit, "")
+                else:
+                    # by default, always remove the unit candidate
+                    str_val = str_val.replace(unit, "")
 
         if "%" in str_val:
             str_val = str_val.replace("%", "")
