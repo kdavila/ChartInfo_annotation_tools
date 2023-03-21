@@ -339,7 +339,11 @@ class AxisValues:
 
         if "%" in str_val:
             str_val = str_val.replace("%", "")
-            multiplier = 0.01
+            multiplier *= 0.01
+
+        if "k" in str_val:
+            str_val = str_val.replace("k", "")
+            multiplier *= 1000.0
 
         if " " in str_val:
             str_val = str_val.replace(" ", "")
