@@ -2,7 +2,7 @@
 import pygame
 import numpy as np
 from pygame import Surface, Rect
-from shapely.geometry import asPolygon, Polygon, Point, LineString
+from shapely.geometry import Polygon, Point, LineString
 
 from .screen_element import ScreenElement
 
@@ -206,7 +206,7 @@ class ScreenCanvasPolygon(ScreenCanvasElement):
         ScreenCanvasElement.__init__(self, visible)
 
         self.points = np.array(points)
-        self.polygon = asPolygon(self.points)
+        self.polygon = Polygon(self.points)
         self.total_dashes = total_dashes
         # polygon_points, closed, total_dashes
         self.dashes_per_side = self.compute_dashes_per_side(self.points, True, total_dashes)
@@ -311,7 +311,7 @@ class ScreenCanvasPolygon(ScreenCanvasElement):
                 new_points[(drag_type + 1) % new_points.shape[0], 0] += dx
                 new_points[(drag_type + 1) % new_points.shape[0], 1] += dy
 
-        test_polygon = asPolygon(new_points)
+        test_polygon = Polygon(new_points)
         valid_polygon = test_polygon.is_valid
         min_x, min_y, max_x, max_y = test_polygon.bounds
 
