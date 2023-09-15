@@ -74,6 +74,7 @@ class FileStats:
                         self.single_per_type[current_type] = [(idx, status_ints)]
 
                     if not "auto_check_passed" in image_info.panels[0].properties:
+                        print(annotation_filename)
                         self.auto_check_stats["total_no_test"] += 1
                     else:
                         if int(image_info.panels[0].properties["auto_check_passed"]) > 0:
